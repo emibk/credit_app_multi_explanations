@@ -1,0 +1,14 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <title>Loan Prediction app</title>
+</head>
+<body>
+</body>
+    {% if prediction %} 
+        <p>Prediction: {{ prediction }}</p>
+            {% if nle %}
+                <p>{{nle}}</p>
+            {% endif %}
+    {% endif %}
+</html>

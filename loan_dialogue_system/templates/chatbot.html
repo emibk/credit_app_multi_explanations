@@ -1,0 +1,65 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <title>Loan Prediction app</title>
+</head>
+<body>
+    <h1> Loan Chatbot </h1>
+    <h3>Click on a question to get an answer: </h3>
+    <div id="questions-list">
+        <button onclick="askQuestion('Remind me my loan status?')">
+            <p>Remind me my loan status?</p>
+        </button>
+        <button onclick="askQuestion('How would my loan status be different?')">
+            <p>How would my loan status be different?</p>
+        </button>
+        <button onclick="askQuestion('What features contributed to the prediction?')">
+            <p>What features contributed to the prediction?</p>
+        </button>
+       
+    </div>
+    <h3>Dialogue history: </h3>
+    <div id="chat-box">
+        <!-- Messages will appear here -->
+    </div>
+    
+</body>
+
+<script>
+    function appendMessage(message, sender) {
+        const chatBox = document.getElementById('chat-box');
+        const messageDiv = document.createElement('div');
+        if (sender === 'user') {
+            messageDiv.innerHTML = `<strong>Your question:</strong> ${message}`;
+        } else {
+            messageDiv.innerHTML = `<strong>Answer:</strong> ${message}`;
+        }
+        messageDiv.classList.add(sender + '-message');
+        
+        chatBox.appendChild(messageDiv);
+        chatBox.scrollTop = chatBox.scrollHeight;  // Scroll to the bottom
+    }
+
+    function askQuestion(question) {
+        // Display the selected question
+        appendMessage(question, 'user');
+
+        // Send the question to Django server
+        fetch('{% url "chatbot" %}', {
+            method: 'POST',
+            body: new URLSearchParams({
+                'user_input': question
+            }),
+            headers: {
+                'X-CSRFToken': '{{ csrf_token }}'
+            }
+        })
+        .then(response => response.json())
+        .then(data => {
+            appendMessage(data.answer, 'bot');
+        });
+    }
+
+   
+</script>
+</head>
