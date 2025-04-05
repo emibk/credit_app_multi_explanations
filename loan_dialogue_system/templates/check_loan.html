@@ -6,16 +6,20 @@
 <body>
     <h2>Enter Data for Prediction</h2>
     {% if prediction %} 
-    
-        <p>Prediction: {{ prediction }}. Your loan would be approved!</p>
-        <p>{{nle}}</p>
-        <a href="{% url 'chatbot' %}">
-            <button>Verify if your loan would be accepted.</button>
-        </a>
-       
+        {% if prediction == "Creditworthy" %}
 
+            <p>Prediction: {{ prediction }}. Your loan would be</p>
+
+        {% endif %}
     
-    
+        {% if prediction == "Non-Creditworthy" %}
+
+            <p>Prediction: {{ prediction }}. For more details, access the link below.</p>
+            <a href="{% url 'chatbot' %}">
+                <button>Get explanations.</button>
+            </a>
+        {% endif %}
+        
     {% endif %}
 
 

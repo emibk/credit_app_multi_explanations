@@ -21,10 +21,10 @@ from catboost import Pool
 def index(request):
     return render(request, "index.html")
 
-MODEL_PATH = os.path.join(os.path.dirname(__file__), "catboost_model_wrapped.pkl")
+MODEL_PATH1 = os.path.join(os.path.dirname(__file__), "catboost_model_1.pkl")
 
-with open(MODEL_PATH, "rb") as f:
-    model = pickle.load(f)
+with open(MODEL_PATH1, "rb") as f:
+    model1 = pickle.load(f)
 
 
 
@@ -83,9 +83,10 @@ def check_loan(request):
             input_df = pd.DataFrame(input_data, index=[0])
 
             # print(input_df)
-            model_prediction = model.predict(input_df)
+            prediction = model1.predict(input_df)
             # print("Prediction made")  # Debugging step
             # print(prediction)
+            '''
             prediction = "Creditworthy" if model_prediction[0] == 1 else "Non-Creditworthy"
             data = dice_ml.Data(features={'Account_status': ['A11', 'A12', 'A13', 'A14'],
                             'Months': [1, 90],
@@ -109,7 +110,7 @@ def check_loan(request):
                             'Foreign_worker': ['A201', 'A202']    
                            },
                  outcome_name='target')
-            model_exp = dice_ml.Model(model=model, backend="sklearn", model_type='classifier')
+            model_exp = dice_ml.Model(model=model1, backend="sklearn", model_type='classifier')
             exp = dice_ml.Dice(data, model_exp, method="random")
             exp_user = exp.generate_counterfactuals(input_df, total_CFs=2, desired_class="opposite")
             # exp_user.visualize_as_dataframe(show_only_changes=True)
@@ -121,19 +122,20 @@ def check_loan(request):
             # edge_labels = nx.get_edge_attributes(G, 'relation')
             # nx.draw_networkx_edge_labels(G, pos, edge_labels=edge_labels)
             # plt.show()
-            
-            nle = generate_nle(G, "Explanation")
+            '''
+            # nle = generate_nle(G, "Explanation")
             # print(nle)
 
             #print(identify_changes(exp_df.iloc[0], input_df))
-            request.session['prediction'] = prediction
+            request.session['prediction'] = str(prediction[0])
             request.session['loan_data'] = input_data
-            context = {
-                'prediction': prediction,
-                'nle': nle,
-                
-            }
-
+            
+            context = ""
+            if prediction[0] == 1:
+                context = {'prediction': "Creditworthy"}
+            else:
+                context = {'prediction': "Non-Creditworthy"}
+            
             return render(request, "check_loan.html", context)
 
             
@@ -154,8 +156,7 @@ def loan_prediction(request):
 
 
 domain_knowledge = {
-    'Account_status':
-    {
+    'Account_status': {
         "description": "Status of existing checking account",
         "values": {
             "A11": "< 0 DM",
@@ -164,12 +165,12 @@ domain_knowledge = {
             "A14": "no checking account",
         }
     },
-    'Months':
-    {
+
+    'Months':{
         "description": "Duration in months",
     },
-    'Credit_history':
-    {
+
+    'Credit_history':{
         "description": "Credit history",
         "values": {
             "A30": "no credits taken/ all credits paid back duly",
@@ -179,9 +180,9 @@ domain_knowledge = {
             "A34": "critical account/ other credits existing (not at this bank)",
         }
     },
-    'Purpose':
-    {
-        "description": "Purpose",
+
+    'Purpose':{
+        "description": "Loan Purpose",
         "values": {
             "A40": "car (new)",
             "A41": "car (used)",
@@ -195,12 +196,12 @@ domain_knowledge = {
             "A410": "others",
         }
     },
-    'Credit_amount':
-    {
+
+    'Credit_amount':{
         "description": "Credit amount",
     },
-    'Savings':
-    {
+
+    'Savings':{
         "description": "Savings account/bonds",
         "values": {
             "A61": "< 100 DM",
@@ -210,8 +211,8 @@ domain_knowledge = {
             "A65": "unknown/ no savings account",
         }
     },
-    'Employment':
-    {
+
+    'Employment':{
         "description": "Present employment since",
         "values": {
             "A71": "unemployed",
@@ -221,12 +222,12 @@ domain_knowledge = {
             "A75": ">= 7 years",
         }
     },
-    'Installment_rate':
-    {
+
+    'Installment_rate':{
         "description": "Installment rate in percentage of disposable income",
     },
-    'Personal_status':
-    {
+
+    'Personal_status':{
         "description":"Personal status and sex",
         "values": {
             	"A91" : "male: divorced/separated",
@@ -237,8 +238,8 @@ domain_knowledge = {
         }
 
     },
-    "Other_debtors":
-    {
+
+    "Other_debtors":{
         "description": "Other debtors/ guarantors",
         "values": {
             "A101": "none",
@@ -246,13 +247,13 @@ domain_knowledge = {
             "A103": "guarantor",
         }
     },
-    "Residence":
-    {
+
+    "Residence":{
         "description": "Present residence since",
     },
-    "Property":
-    {
-        "description": "Property",
+
+    "Property":{
+        "description": "Property type",
         "values": {
             "A121": "real estate",
             "A122": "if not real estate: building society savings agreement/ life insurance",
@@ -260,12 +261,12 @@ domain_knowledge = {
             "A124": "unknown / no property",
         }
     },
-    "Age":
-    {
+
+    "Age":{
         "description": "Age in years",
     },
-    "Other_installments":
-    {
+
+    "Other_installments":{
         "description": "Other installments",
         "values": {
             "A141": "bank",
@@ -273,22 +274,22 @@ domain_knowledge = {
             "A143": "none",
         }
     },
-    "Housing":
-    {
-        "description": "Housing",
+
+    "Housing":{
+        "description": "Housing situation",
         "values": {
             "A151": "rent",
             "A152": "own",
             "A153": "for free",
         }
     },
-    "Number_credits":
-    {
+
+    "Number_credits":{
         "description": "Number of existing credits at this bank",
     },
-    "Job":
-    {
-        "description": "Job",
+
+    "Job":{
+        "description": "Employment status",
         "values": {
             "A171": "unemployed/ unskilled - non-resident",
             "A172": "unskilled - resident",
@@ -296,31 +297,34 @@ domain_knowledge = {
             "A174": "management/ self-employed/ highly qualified employee/ officer",
         }
     },
-    "Number_dependents":
-    {
+
+    "Number_dependents":{
         "description": "Number of people being liable to provide maintenance for",
     },
-    "Telephone":
-    {
-        "description": "Telephone",
+
+    "Telephone":{
+        "description": "Telephone registration",
         "values": {
             "A191": "none",
             "A192": "yes",
         }
     },
-    "Foreign_worker":
-    {
+
+    "Foreign_worker":{
         "description": "Foreign worker",
         "values": {
             "A201": "yes",
             "A202": "no",
         }
+    },
+
+    "prediction": {
+        "values": {
+            "1": "Creditworthy",
+            "0": "Non-Creditworthy",
+        }
     }
-
-
 }
-
-
 def identify_changes(counterfactual_instance, input_df):
     changes = {}
     for feature in input_df.columns:
@@ -330,51 +334,79 @@ def identify_changes(counterfactual_instance, input_df):
             changes[feature] = (original_value, new_value)
     return changes
 
-def create_explanation_graph(counterfactual_instance, prediction, input_df):
-    changes = identify_changes(counterfactual_instance, input_df)
+def create_explanation_graph(counterfactual_instances, prediction, input_df):
+    no_cf = len(counterfactual_instances)
     G = nx.DiGraph()
-    G.add_node("Explanation", description="Explanation of model prediction changes")
-    G.add_node(prediction, description=f"Model predicted '{prediction}'")
-    G.add_edge("Explanation", prediction, relation="ModelOutput")
+    G.add_node("Explanation", label = "Explanation")
+    G.add_node(prediction, label = f"Model Output: {prediction}")
+    G.add_edge("Explanation", prediction, label = "Model Prediction")
 
-    for feature, (original_value, new_value) in changes.items():
-        G.add_node(f"{feature}", description = f"{feature}")
-        feature_descr = domain_knowledge[feature]["description"]
-        G.add_node(f"{feature}: {feature_descr}", description=feature_descr)
-        G.add_edge(f"{feature}: {feature_descr}", f"{feature}", relation="Describes")
-        G.add_node(f"{feature}: {original_value}", description=original_value)
-        G.add_node(f"{feature}: {new_value}", description=new_value)
-        G.add_edge("Explanation", f"{feature}", relation="Changed")
-        G.add_edge(f"{feature}", f"{feature}: {original_value}", relation="Original Value")
-        G.add_edge(f"{feature}", f"{feature}: {new_value}", relation="New Value")
-        G.add_edge(f"{feature}: {original_value}", f"{feature}: {new_value}", relation="Changed To")
-        if "values" in domain_knowledge[feature]:
-            
-            feature_val_original = domain_knowledge[feature]["values"][original_value]
-            G.add_node(f"{feature}: {feature_val_original}", description=feature_val_original)
-            G.add_edge(f"{feature}: {original_value}", f"{feature}: {feature_val_original}", relation="Describes")
+    pred_meaning = domain_knowledge["prediction"]["values"][str(prediction)]
+    G.add_node(pred_meaning, label = pred_meaning)
+    G.add_edge(prediction, pred_meaning, label = "Prediction Meaning")
 
-            feature_val_new = domain_knowledge[feature]["values"][new_value]
-            G.add_node(f"{feature}: {feature_val_new}", description=feature_val_new)
-            G.add_edge(f"{feature}: {new_value}", f"{feature}: {feature_val_new}", relation="Describes")
+    G.add_node("Current Features", label = "Current Features")
+    G.add_edge("Explanation", "Current Features", label = "Current Situation")
 
-            G.add_edge(f"{feature}: {feature_val_original}", f"{feature}: {feature_val_new}", relation="Changed To")
+    for i in range(no_cf):
+        changes = identify_changes(counterfactual_instances.iloc[i], input_df)
 
-    
+        G.add_node(f"Counterfactual{i+1} Features", label = f"Counterfactual{i+1} Features")
+        G.add_edge("Explanation", f"Counterfactual{i+1} Features", label = "Alternative Situation")
+
+
+        for feature, (original_value, new_value) in changes.items():
+            G.add_node(f"Current {feature}", label= feature)
+            G.add_edge("Current Features", f"Current {feature}", label="Current Feature")
+
+            feature_descr = domain_knowledge[feature]["description"]
+            G.add_node(f"Current {feature_descr}", label=feature_descr)
+            G.add_edge(f"Current {feature}", f"Current {feature_descr}", label = "Description")
+
+
+            G.add_node(f"New cf{i+1} {feature}", label=feature)
+            G.add_edge(f"Counterfactual{i+1} Features", f"New cf{i+1} {feature}", label="Changed Feature")
+            G.add_node(f"New cf{i+1} {feature_descr}", label=feature_descr)
+            G.add_edge(f"New cf{i+1} {feature}", f"New cf{i+1} {feature_descr}", label = "Description")
+
+            G.add_node(f"Current {original_value}", label=original_value)
+            G.add_edge(f"Current {feature}", f"Current {original_value}", label="Current Value")
+            G.add_node(f"New cf{i+1} {new_value}", label=new_value)
+            G.add_edge(f"New cf{i+1} {feature}", f"New cf{i+1} {new_value}", label="Changed Value")
+
+           
+            if "values" in domain_knowledge[feature]:
+                original_val_descr = domain_knowledge[feature]["values"][original_value]
+                G.add_node(f"Current {original_val_descr}", label = original_val_descr)
+                G.add_edge(f"Current {original_value}", f"Current {original_val_descr}", label="Describes")
+
+                new_val_descr = domain_knowledge[feature]["values"][new_value]
+                G.add_node(f"New cf{i+1} {new_val_descr}", label = new_val_descr)
+                G.add_edge(f"New cf{i+1} {new_value}", f"New cf{i+1} {new_val_descr}", label="Describes")
     return G
 
-def depth_first_search(graph, node, visited, explanation):
+
+def depth_first_search(graph, node, visited, explanation, idx = 0):
     visited.add(node)
     for neighbor in graph.neighbors(node):
-        relation = graph.get_edge_data(node, neighbor)["relation"]
-        if relation == "ModelOutput":
-            explanation.insert(0, f"The prediction of '{neighbor}' is based on the following factors:")
-        if relation == "Changed":
-            explanation.append(f"The {node} has changed to {neighbor}")
-        if relation == "Changed To":
-            explanation.append(f"The {node} has changed to {neighbor}")
+        relation = graph.get_edge_data(node, neighbor)["label"]
+
+        if relation == "Prediction Meaning":
+            explanation.insert(0, f"The prediction is '{neighbor}' <br><br>")
+        else:
+            if relation == "Current Situation":
+                explanation.append(f"<br> Current Situation: <br><ul>")
+            if relation == "Alternative Situation":
+                explanation.append(f"</ul><br> Alternative Situation: <br><ul>")
+            if graph.out_degree(neighbor) == 0:
+                idx += 1 
+                neighbor_label = graph.nodes[neighbor]["label"]
+                if idx % 2 == 0:
+                    explanation.append(f"{neighbor_label} </li>")
+                if idx % 2 != 0:
+                    explanation.append(f"<li>{neighbor_label}: ")
         if neighbor not in visited:
-            depth_first_search(graph, neighbor, visited, explanation)
+            depth_first_search(graph, neighbor, visited, explanation, idx)
     return explanation
 
 def generate_nle(graph, root_node):
@@ -382,18 +414,17 @@ def generate_nle(graph, root_node):
     explanation = depth_first_search(graph, root_node, set(), explanation)
     print(explanation)
     
-    return "\n".join(explanation)
+    return "".join(explanation)
 
 def generate_counterfactual(input_data, prediction):
-    print("DEBUG")
+    
     input_df = pd.DataFrame(input_data, index=[0])
-    print("dataframe")
-    print(input_df)
+    
     data = dice_ml.Data(features={'Account_status': ['A11', 'A12', 'A13', 'A14'],
-                            'Months': [1, 90],
+                            'Months': [4, 72],
                             'Credit_history': ['A30', 'A31', 'A32', 'A33', 'A34'],
                             'Purpose': ['A40', 'A41', 'A42', 'A43', 'A44', 'A45', 'A46', 'A48', 'A49', 'A410'],
-                            'Credit_amount': [10, 30000],
+                            'Credit_amount': [250, 18424],
                             'Savings': ['A61', 'A62', 'A63', 'A64', 'A65'],
                             'Employment': ['A71', 'A72', 'A73', 'A74', 'A75'],
                             'Installment_rate': [1, 4],
@@ -401,141 +432,339 @@ def generate_counterfactual(input_data, prediction):
                             'Other_debtors': ['A101', 'A102', 'A103'],
                             'Residence': [1, 4],
                             'Property': ['A121', 'A122', 'A123', 'A124'],
-                            'Age': [19, 90],
+                            'Age': [19, 75],
                             'Other_installments': ['A141', 'A142', 'A143'],
                             'Housing': ['A151', 'A152', 'A153'],
                             'Number_credits': [1, 4],
                             'Job': ['A171', 'A172', 'A173', 'A174'],
-                            'Number_dependents': [1, 5],
+                            'Number_dependents': [1, 2],
                             'Telephone': ['A191', 'A192'],
                             'Foreign_worker': ['A201', 'A202']    
                            },
                  outcome_name='target')
-    model_exp = dice_ml.Model(model=model, backend="sklearn", model_type='classifier')
-    exp = dice_ml.Dice(data, model_exp, method="random")
-    exp_user = exp.generate_counterfactuals(input_df, total_CFs=2, desired_class="opposite")
+    fixed_features = ["Credit_history", "Personal_status", "Age", "Number_dependents", "Foreign_worker"]
+    features_to_vary = list(set(data.feature_names) - set(fixed_features))
+
+
+    m = dice_ml.Model(model=model1, backend="sklearn", model_type='classifier')
+    exp = dice_ml.Dice(data, m, method="random")
+    e = exp.generate_counterfactuals(input_df, total_CFs=2, desired_class="opposite", features_to_vary=features_to_vary)
     # exp_user.visualize_as_dataframe(show_only_changes=True)
-    exp_df = exp_user.cf_examples_list[0].final_cfs_df
+    e_df = e.cf_examples_list[0].final_cfs_df
     # print(exp_df)
-    G0 = create_explanation_graph(exp_df.iloc[0], prediction, input_df)
-   
-    G1 = create_explanation_graph(exp_df.iloc[1], prediction, input_df)
-    nle0 = generate_nle(G0, "Explanation")
-    nle1 = generate_nle(G1, "Explanation")
-    nle = nle0 + "<br>" + nle1
+    G = create_explanation_graph(e_df, prediction, input_df)
+    nle = generate_nle(G, "Explanation")
     return nle
 
 
 def generate_feature_importance(input_data):
-    explainer = shap.Explainer(model)
+    explainer = shap.Explainer(model1)
     input_df = pd.DataFrame(input_data, index=[0])
     shap_values = explainer(input_df)
     
-    #shap.plots.waterfall(shap_values[0])
-    #shap.force_plot(shap_values[0], input_df.iloc[0,:])
-    #shap.force_plot(explainer.expected_value, shap_values.values[0, :], input_df.iloc[0,:])
     return shap_values
-'''
+
+
+
+domain_knowledge_shap = {
+    'Account_status': {
+        "A11": "High risk. Financial instability",
+        "A12": "Potential high risk. Financial instability",
+        "A13": "Positive. Consider expenses and debt factors",
+        "A14": "High risk. No financial history",
+    },
+    'Months':{
+        "<36 months": "Higher monthly payments. Less risk for lender. Consider income, expenses and existing debt.",
+        "36-72 months": "Higher risk due to uncertainty in future income",
+    },
+    'Credit_history':{
+        "A30": "Consider building credit history at this bank",
+        "A31": "Positive factor. Consider other factors, such as not borrowing excessively",
+        "A32": "Consider factors such as over-borrowing, debt and income",
+        "A33": "Increased risk of default",
+        "A34": "Consider paying off existing loans before taking new ones",
+    },
+    'Purpose':{
+        "A40": "Considerable financial comittement. Ensure good debt to income ratio",
+        "A41": "While more affordable than a new car, ensure good debt to income ratio",
+        "A42": "Non-essential, lower priority. Quickly deapreciates, which means the lender may not recover loan through resale",
+        "A43": "Non-essential, lower priority. Quickly deapreciates, which means the lender may not recover loan through resale",
+        "A44": "Non-essential, lower priority. Quickly deapreciates, which means the lender may not recover loan through resale",
+        "A45": "Needing repairs might indicate a lack of savings or financial instability",
+        "A46": "Debt to income ratio concerns. Uncertainty about return on investment.",
+        "A48": "Uncertainty. More risky. Look for affordable retraining options. Ensure financial stabilty",
+        "A49": "High risk investment. ",
+        "A410": "Lack of detailed information",
+    },
+    'Credit_amount':{
+        "250-6000": "Low amount, low risk. Generally positive, but other factors might be unfavorable",
+        "6000-12000": "Moderate amount, moderate risk. Consider other factors or lower credit amount",
+        "12000-18424": "High amount, high risk. Consider other factors or lower credit amount",
+    },
+    'Savings':{
+        "A61": "Low savings. Higher risk. Consider building savings before taking loans to show financial stability",
+        "A62": "Might be insufficient for required loan amount",
+        "A63": "Moderate savings. Consider building savings before taking loans",
+        "A64": "Good savings are generally positive. Consider other factors",
+        "A65": "Absence of savings might indicate financial instability and higher risk for lender",
+    },
+    'Employment':{
+        "A71": "No income source is high risk.",
+        "A72": "Short employment history is a risk factor due to uncertainty in income",
+        "A73": "Stable employment. Generally positive, but consider other factors or the requied loan amount requires better stability",
+        "A74": "High level of stable employment. Generally positive, but consider other factors",
+        "A75": "Stable employment. Generally positive, but consider other factors, such as savings and creditworthiness",
+    },
+    'Installment_rate':{
+        "explanation": "High installment rate means a large proportion of income is dedicated to lean repayment. This can be risky."
+    },
+    'Personal_status':{
+        'explanation': 'Family responsibilities can increase financial comittments and reduce flexibility, '
+        'consider income levels, savings and debt. Single individuals have fewer obligations, but depending on income, debt, '
+        'employment history, the lack of financial support might be risky',
+    },
+    'Other_debtors':{
+        "A101": "No other debtors means no shared responsibility, which means that it reduces changes of loan acceptance, especially high risk applicants",
+        "A102": "Reduces risks for lender, but consider co-applicant financial profile and other factors",
+        "A103": "Reduces risks for lender, but consider guarantor financial profile and other factors",
+    },
+    'Residence':{
+        "explanation": "Short periods of residence increase risks, as they may indicate financial or employment instability."
+    },
+    'Property':{
+        "A121": "Generally a positive factor, but consider other factors, such as debt for the property",
+        "A122": "Generally a positive factor, but consider other factors, such as savings",
+        "A123": "Cars deapreciate quickly. Consider other factors, such as investing in assets that increase in value over time or increase savings",
+        "A124": "Absence of assets increases the risk level for the lender, as they can not be used as collaterals in case of non payment",
+    },
+    'Age':{
+        "19-25": "Younger applicants may have less financial stability and less credit history. Low income, student debts",
+        "26-35": "Young adults may have some financial stability, but there is a risk of financial stress due to multiple debts, such as student loans"
+        "and mortgages",
+        "36-45": "Middle-aged applicants may have more financial stability, but there is a risk of financial stress due to multiple debts, such as mortgages"
+        "and other loans",
+        "46-55": "Older applicants may have more financial stability, but there is a risk of financial stress due to multiple debts and insufficient savings",
+        "56-65": "Older applicants near retirement have limited future earning potential, which can increase credit risk without sufficient savings",
+
+    },
+    'Other_installments':{
+        "A141": "Depending on the installment type and income, might increase the risk of inability to pay the loan",
+        "A142": "While generally less risky than bank loans, it can still increase the risk of inability to pay the loan. Multiple loans "
+        "might lead to high debt to income ratio",
+        "A143": "Generally positive, but without a credit history, few assets, or low savings, it is difficult to assess if applicant can repay loan",
+    },
+    'Housing':{
+        "A151": "Renting means no assets to use as collateral and monthly payment comittements. Consider rent amount and other factors such as income and debt",
+        "A152": "Owning a home is generally a positive factor, but consider other factors, such as debt for the property, property expenses and income",
+        "A153": "Might indicate financial instability. Consider other factors.",
+    },
+    'Number_credits':{
+        "explanation": "Multple credits might indicate financial instability, higher debt to income ratio, higher debt levels and high risk for lender.",
+    },
+    'Job':{
+        "A171": "Unemployed or unskilled workers are high risk for lenders due to lower income levels or financial instability. Non residency "
+        "limits access to job opportunities",
+        "A172": "This can indicate limited earning potential. Temporary jobs indicate instability and uncertainty in income. ",
+        "A173": "Generally positive, but consider other factors, such as income and debt levels",
+        "A174": "Generally positive. Self-employment can be volatile. Consider income, debt levels.",
+    },
+    'Number_dependents':{
+        "explanation": "Higher number of dependents means higher financial comittments and less flexibility. "
+        "Consider other factos such as income, debt and savings",
+    },
+    'Telephone':{
+        "A191": "Might indicate financial instability, and higher risks for lender",
+        "A192": "Telephone registration is generally a positive factor, but consider other factors",
+    },
+    'Foreign_worker':{
+        "A201": "May not have enough credit history.",
+        "A202": "Consider other factors",
+    },
+
+}
+
+protected_attributes = {
+    "Personal_status": {
+        "protected_attr": "sex",
+    },
+    "Age": {
+        "protected_attr": "age",
+    },
+    "Foreign_workers": {
+        "protected_attr": "race, ethnicity and social origin",
+    },
+}
+
+
 def shap_graph(features, data, feature_contributions, prediction):
     G = nx.DiGraph()
-    G.add_node("Explanation", description="Explanation of model prediction changes")
+    G.add_node("Explanation", label ="Explanation")
+    G.add_node(prediction, label = f"Model Output: {prediction}")
+    G.add_edge("Explanation", prediction, label = "Model Prediction")
 
-    G.add_node("Negative contributions", description="Negative contributions")
-    G.add_node("Positive contributions", description="Positive contributions")
-    G.add_edge("Explanation", "Negative contributions", relation="ModelOutput")
-    G.add_edge("Explanation", "Positive contributions", relation="ModelOutput")
+    pred_meaning = domain_knowledge["prediction"]["values"][str(prediction)]
+    G.add_node(pred_meaning, label = pred_meaning)
+    G.add_edge(prediction, pred_meaning, label = "Prediction Meaning")
 
-    for i in range(3):
-        G.add_node(features[i], description=features[i])
-        if feature_contributions[i] < 0:
-            G.add_edge("Negative contributions", features[i], relation="Contributes")
-        else:
-            G.add_edge("Positive contributions", features[i], relation="Contributes")
+    G.add_node("Negative Contribution", label = "Negative Contribution")
+    G.add_edge("Explanation", "Negative Contribution", label = "Negative Contributions")
+
+    G.add_node("Protected attributes", label = "Protected attributes")
+    G.add_edge("Explanation", "Protected attributes", label = "Protected attributes")
+
+    
+
+
+    for i in range (len(features)):
+        G.add_node(features[i], label = features[i])
+        G.add_edge("Negative Contribution", features[i], label = f"Contributes {feature_contributions[i]}")
         feature_descr = domain_knowledge[features[i]]["description"]
-
-        G.add_node(feature_descr, description=feature_descr)
-        G.add_edge(features[i], feature_descr, relation="Describes")
-
-        G.add_node(feature_contributions[i], description=feature_contributions[i])
-        G.add_edge(feature_contributions[i], features[i], relation="Contributes")
-
-        G.add_node(data[i], description=data[i])
-        G.add_edge(data[i], features[i], relation="Value of feature")
-
-        if "values" in domain_knowledge[features[i]]:
-            feature_val = domain_knowledge[features[i]]["values"][data[i]]
-            G.add_node(feature_val, description=feature_val)
-            G.add_edge(data[i], feature_val, relation="Describes")
-            #G.add_node(f"{features[i]}: {feature_contributions[i]}", description=features[i])
-            #G.add_edge("Negative contributions", f"{features[i]}: {feature_contributions[i]}", relation="Contributes")
-
-
-    return G'
-'''
-
-def shap_graph(features, data, feature_contributions, prediction):
-    G = nx.DiGraph()
-    G.add_node("Explanation", description="Explanation of model prediction changes")
-    G.add_node(prediction, description=f"Model predicted '{prediction}'")
-    G.add_edge("Explanation", prediction, relation="ModelOutput")
-
-    for i in range(len(data)):
-        G.add_node(data[i], description=data[i])
-        if feature_contributions[i] < 0:
-            G.add_edge("Explanation", data[i], relation="Negative Contribution")
-            
-        else:
-            G.add_edge("Explanation", data[i], relation="Positive Contribution")
+        G.add_node(feature_descr, label = feature_descr)
+        G.add_edge(features[i], feature_descr, label = "Describes")
         
-        G.add_node(features[i], description=features[i])
-        G.add_edge(data[i], features[i], relation="Value of feature")
-        feature_descr = domain_knowledge[features[i]]["description"]
-        G.add_node(feature_descr, description=feature_descr)
-        G.add_edge(features[i], feature_descr, relation="Describes")
+        G.add_node(data[i], label = data[i])
+        G.add_edge(features[i], data[i], label = "Value of feature")
+
+        
+
+            
         if "values" in domain_knowledge[features[i]]:
             data_val = domain_knowledge[features[i]]["values"][data[i]]
-            G.add_node(data_val, description=data_val)
-            G.add_edge(data[i], data_val, relation="Describes")
-        if feature_contributions[i] < 0:
-            G.add_node("Negative contribution", description="Negative contribution")
-            G.add_edge(data[i], "Negative contribution", relation="Contributes")
+            G.add_node(data_val, label = data_val)
+            G.add_edge(data[i], data_val, label = "Describes")
+
+            if features[i] != "Personal_status":
+                data_exp = domain_knowledge_shap[features[i]][data[i]]
+                G.add_node(data_exp, label = f"{data[i]} explanation")
+                G.add_edge(data[i], data_exp, label = "Value Explanation")
+
+        if features[i] == "Months":
+            if data[i] < 36:
+                exp = domain_knowledge_shap[features[i]['<36 months']]
+                G.add_node(exp, label = "short loan")
+                G.add_edge(data[i], exp, label = "Value Explanation")
+            else:
+                exp = domain_knowledge_shap[features[i]['36-72 months']]
+                G.add_node(exp, label = "long loan")
+                G.add_edge(data[i], exp, label = "Value Explanation")
+        
+        if features[i] == "Credit_amount":
+            if data[i] < 6000:
+                exp = domain_knowledge_shap[features[i]['250-6000']]
+                G.add_node(exp, label = "low amount")
+                G.add_edge(data[i], exp, label = "Value Explanation")
+            elif data[i] < 12000:
+                exp = domain_knowledge_shap[features[i]['6000-12000']]
+                G.add_node(exp, label = "moderate amount")
+                G.add_edge(data[i], exp, label = "Value Explanation")
+            else:
+                exp = domain_knowledge_shap[features[i]['12000-18424']]
+                G.add_node(exp, label = "high amount")
+                G.add_edge(data[i], exp, label = "Value Explanation")
+        
+        if features[i] == "Installment_rate":
+            exp = domain_knowledge_shap[features[i]]["explanation"]
+            G.add_node(exp, label = "installment rate")
+            G.add_edge(data[i], exp, label = "Value Explanation")
+        
+        if features[i] == "Personal_status":
+            exp = domain_knowledge_shap[features[i]]["explanation"]
+            G.add_node(exp, label = "personal status")
+            G.add_edge(data[i], exp, label = "Value Explanation")
+        
+        if features[i] == "Residence":
+            exp = domain_knowledge_shap[features[i]]["explanation"]
+            G.add_node(exp, label = "residence")
+            G.add_edge(data[i], exp, label = "Value Explanation")
+        
+        if features[i] == "Age":
+            if data[i] < 25:
+                exp = domain_knowledge_shap[features[i]['19-25']]
+                G.add_node(exp, label = "young")
+                G.add_edge(data[i], exp, label = "Value Explanation")
+            elif data[i] < 35:
+                exp = domain_knowledge_shap[features[i]['26-35']]
+                G.add_node(exp, label = "young adult")
+                G.add_edge(data[i], exp, label = "Value Explanation")
+            elif data[i] < 45:
+                exp = domain_knowledge_shap[features[i]['36-45']]
+                G.add_node(exp, label = "middle aged")
+                G.add_edge(data[i], exp, label = "Value Explanation")
+            elif data[i] < 55:
+                exp = domain_knowledge_shap[features[i]['46-55']]
+                G.add_node(exp, label = "older adult")
+                G.add_edge(data[i], exp, label = "Value Explanation")
+            else:
+                exp = domain_knowledge_shap[features[i]['56-65']]
+                G.add_node(exp, label = "senior")
+                G.add_edge(data[i], exp, label = "Value Explanation")
+        
+        if features[i] == "Number_credits":
+            exp = domain_knowledge_shap[features[i]]
+            G.add_node(exp, label = "number of credits")
+            G.add_edge(data[i], exp, label = "Value Explanation")
+        
+        if features[i] == "Number_dependents":
+            exp = domain_knowledge_shap[features[i]]
+            G.add_node(exp, label = "number of dependents")
+            G.add_edge(data[i], exp, label = "Value Explanation")
+        
+        if features[i] in protected_attributes:
+            protected_attr = protected_attributes[features[i]]["protected_attr"]
+            G.add_node(protected_attr, label = protected_attr )
+            G.add_edge("Protected attributes", protected_attr, label = "Protected attribute")
     return G
 
 
-def depth_first_search_shap(graph, node, visited, explanation):
+def depth_first_search_shap(graph, node, visited, exp_pred, exp_outcome, exp_protected, idx = 0):
     visited.add(node)
     for neighbor in graph.neighbors(node):
-        relation = graph.get_edge_data(node, neighbor)["relation"]
-        if relation == "ModelOutput":
-            explanation.insert(0, f"The prediction of '{neighbor}' is based on the following factors:")
-        
-        if relation == "Describes":
-            explanation.append(f"The {node} describes the feature")
-        if relation == "Value of feature":
-            explanation.append(f"The value of the feature is {node}")
-        if relation == "Negative Contribution":
-            explanation.append(f"The {node} has a negative contribution")
-        if relation == "Positive Contribution":
-            explanation.append(f"The {node} has a positive contribution")
+        relation = graph.get_edge_data(node, neighbor)["label"]
+        if relation == "Prediction Meaning":
+            ## explanation.insert(0, f"<br> The prediction of '{neighbor}' is based on the following top 5 factors:<ul>")
+            exp_pred.append(f"<br> The prediction of '{neighbor}' is based on the following top 5 factors:<ul>")
+
+        if graph.out_degree(neighbor) == 0 and relation != "Protected attribute" and relation != "Protected attributes" and relation != "Prediction Meaning":
+            idx += 1
+            if idx % 3 == 0:
+                exp_outcome.append(f"{neighbor}: </li>")
+            elif idx % 3 == 1:
+                exp_outcome.append(f"<li>{neighbor}: ")
+            else:
+                label = graph.nodes[neighbor]["label"]
+                exp_outcome.append(f" {label}  </li>")
+
+        if relation == "Protected attributes":
+            exp_protected.append(f"<br> Protected attributes, according to the EU Charter of Fundamental Rights: <br><ul>")
+        if relation == "Protected attribute":
+            exp_protected.append(f"<li> {neighbor} </li>")
        
         if neighbor not in visited:
-            depth_first_search(graph, neighbor, visited, explanation)
-    return explanation
+            depth_first_search_shap(graph, neighbor, visited, exp_pred, exp_outcome, exp_protected, idx)
+    return exp_pred, exp_outcome, exp_protected
 
 
 def shap_nle(graph, root_node):
     explanation = []
-    explanation = depth_first_search_shap(graph, root_node, set(), explanation)
-    print(explanation)
+    exp_pred, exp_outcome, exp_protected = [], [], []
+    exp_pred, exp_outcome, exp_protected = depth_first_search_shap(graph, root_node, set(), exp_pred, exp_outcome, exp_protected)
+    exp_outcome.append("</ul>")
+    exp_protected.append("</ul>")
+    if len(exp_protected) > 0:
+        exp_protected.append("If you believe that protected attributes contributed to a dicriminatory negative prediction, please contact support or a human reviwer.")
     
-    return "\n".join(explanation)
+    explanation = exp_pred + exp_outcome + exp_protected
+    
+    return "".join(explanation)
 
 
 def chatbot(request):
     if request.method == "POST":
         prediction = request.session.get("prediction")
         loan_data = request.session.get("loan_data")
+        print(prediction)
         
+
         if not prediction or not loan_data:
             return JsonResponse({'error': 'Please submit a loan application form.'})
         
@@ -544,30 +773,48 @@ def chatbot(request):
 
 
         if user_input == "Remind me my loan status?":
-            response = prediction
+            response = ""
+            if prediction[0] == "1":
+                response = "Creditworthy"
+            else:
+                response = "Non-Creditworthy"
             return JsonResponse({'answer': response})
         
         if user_input == "How would my loan status be different?":
             response = generate_counterfactual(loan_data, prediction)
             return JsonResponse({'answer': response})
+        
         if user_input == "What features contributed to the prediction?":
             shap_values = generate_feature_importance(loan_data)
             feature_contributions = shap_values.values[0, :]
             feature_names = shap_values.feature_names
             data = shap_values.data[0, :]
-            # print(feature_contributions)
-            # print(feature_names)
-            # print(data)
-           
-            # print(f'size of data: {data.shape} and size of feature contributions : {feature_contributions.shape}')
-            # G = shap_graph(feature_names, data, feature_contributions, prediction)
-            # pos = nx.planar_layout(G)
-            # nx.draw(G, pos, with_labels=True, node_size=3000, node_color='lightblue', font_size=10)
-            # edge_labels = nx.get_edge_attributes(G, 'relation')
-            # nx.draw_networkx_edge_labels(G, pos, edge_labels=edge_labels)
-            # plt.show()
+            print(data)
+            
+            
+            ### Show top 5 features with negative contributions
+            sorted_indices = np.argsort(feature_contributions)
+            top_indices = sorted_indices[:5]
+            feature_contributions = feature_contributions[top_indices]
+            feature_names = [feature_names[i] for i in top_indices]
+            data = data[top_indices]
+
             G_shap = shap_graph(feature_names, data, feature_contributions, prediction)
+            pos = nx.spring_layout(G_shap) 
+            
+            edge_labels = nx.get_edge_attributes(G_shap, 'label')
+            
+            nx.draw(G_shap, pos, with_labels=True, node_size = 900, font_size = 10)
+            nx.draw_networkx_edge_labels(G_shap, pos, edge_labels=edge_labels)
+            #plt.savefig("shap_graph_nx.png")
+            #plt.close()
+
+            A = nx.nx_agraph.to_agraph(G_shap)
+            A.layout(prog='dot')
+            A.draw('shap_graph.pdf')
+
             response = shap_nle(G_shap, "Explanation")
+            
 
 
             # response = "The following features contributed to the prediction: "
@@ -591,7 +838,7 @@ def other_chatbot(request):
                               'Other_installments', 'Housing', 'Number_credits', 'Job', 'Number_dependents', 
                               'Telephone', 'Foreign_worker', 'target'] 
             X = german_credit_data.loc[:, german_credit_data.columns != "target"]
-            explainer = shap.Explainer(model)
+            explainer = shap.Explainer(model1)
             
             shap_values = explainer(X)
             #feature_contributions = shap_values.values
@@ -636,7 +883,7 @@ def other_chatbot(request):
 
             
 
-            y_pred = model.predict(X_test)
+            y_pred = model1.predict(X_test)
             #accuracy = np.mean(y_pred == y_test)
             accuracy = accuracy_score(y_test, y_pred)
             precision = precision_score(y_test, y_pred)
@@ -711,7 +958,7 @@ def other_chatbot(request):
             # print(feature_index)
 
             X = german_credit_data.loc[:, german_credit_data.columns != "target"]
-            explainer = shap.Explainer(model)
+            explainer = shap.Explainer(model1)
             
             shap_values = explainer(X)
 
@@ -737,7 +984,7 @@ def other_chatbot(request):
             data_pool = Pool(X, y, cat_features=categorical_features)
 
 
-            interactions = model.get_feature_importance(data_pool, type = "Interaction")
+            interactions = model1.get_feature_importance(data_pool, type = "Interaction")
             print(interactions.shape)
 
             interactions_df = pd.DataFrame(interactions, columns=["Feature 1 Index", "Feature 2 Index", "Interaction Strength"])
@@ -758,7 +1005,7 @@ def other_chatbot(request):
             print(specific_feature_interactions[["Feature 1", "Feature 2", "Interaction Strength"]])
             
 
-            feature_importances = model.get_feature_importance()
+            feature_importances = model1.get_feature_importance()
             print(pd.DataFrame({'Feature': X.columns, 'Importance': feature_importances}).sort_values(by='Importance', ascending=False))
             print(X["Foreign_worker"].value_counts())
             return JsonResponse({'answer': "Sorry, I didn't understand that."})
