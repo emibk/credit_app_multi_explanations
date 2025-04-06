@@ -13,6 +13,9 @@
         <button onclick="askQuestion('I want to see the fairness of the model')">
             <p>I want to see the fairness of the model</p>
         </button>
+        <button onclick="askQuestion('I want to see SHAP fairness')">
+            <p>I want to see SHAP fairness</p>
+        </button>
         
        
     </div>
@@ -27,6 +30,7 @@
     function appendMessage(message, sender) {
         const chatBox = document.getElementById('chat-box');
         const messageDiv = document.createElement('div');
+        message = message.replace(/\r?\n/g, '<br>');
         if (sender === 'user') {
             messageDiv.innerHTML = `<strong>Your question:</strong> ${message}`;
         } else {

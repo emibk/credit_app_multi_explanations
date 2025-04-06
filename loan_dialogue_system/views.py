@@ -11,10 +11,12 @@ from matplotlib import pyplot as plt
 import numpy as np
 from sklearn.model_selection import train_test_split
 from sklearn.metrics import accuracy_score, precision_score, recall_score, f1_score
-from fairlearn.metrics import demographic_parity_ratio
-from fairlearn.metrics import equalized_odds_ratio
+from fairlearn.metrics import demographic_parity_ratio, demographic_parity_difference
+from fairlearn.metrics import equalized_odds_ratio, equalized_odds_difference
+from fairlearn.metrics import equal_opportunity_difference, equal_opportunity_ratio
+
 import shap
-from fairlearn.metrics import MetricFrame, selection_rate, count, false_positive_rate, false_negative_rate
+from fairlearn.metrics import MetricFrame, selection_rate, count, false_positive_rate, false_negative_rate, true_positive_rate, true_negative_rate, mean_prediction
 from catboost import Pool
 # Create your views here.
 
@@ -810,8 +812,8 @@ def chatbot(request):
             #plt.close()
 
             A = nx.nx_agraph.to_agraph(G_shap)
-            A.layout(prog='dot')
-            A.draw('shap_graph.pdf')
+            #A.layout(prog='dot')
+            #A.draw('shap_graph.pdf')
 
             response = shap_nle(G_shap, "Explanation")
             
@@ -824,6 +826,180 @@ def chatbot(request):
     return render(request, "chatbot.html")
 
 
+domain_knowledge_global_shap = {
+    'Account_status': 'No account status or low account status is a high risk factor and might indicate inability to pay the loan',
+    'Months': 'Shorter loan periods are less risky for lenders. Longer periods are riskier due to uncertainty in future income',
+    'Credit_history': 'Past behavior in paying debt indicates future risks',
+    'Purpose': 'Reason indicates risk levels. Retraining and business loans are riskier due to uncertainty in future income. Certain goods and used cars are riskier due to depreciation, especially if the customer has a bad credit history',
+    'Credit_amount': 'Higher amounts are riskier for lenders, especially if the customer has a bad credit history or low income',
+    'Savings': 'Low savings indicate financial instability and higher risk',
+    'Employment': 'Short employment history is a risk factor due to uncertainty in income. Long-term carries less risk',
+    'Installment_rate': 'High installment rate means a large proportion of income is dedicated to lean repayment. This can be risky.',
+    'Personal_status': 'Family responsibilities can increase financial comittements. Single individuals have fewer obligations, but depending on income, debt, employment history, the lack of financial support might be risky',
+    'Other_debtors': 'No other debtors means no shared responsibility. Co-applicants and guarantors may reduce risks for lender, but might indicate low creditworthiness',
+    'Residence': 'Short periods of residence increase risks, as they may indicate financial or employment instability. Longer periods are preffered',
+    'Property': 'Real estate is generally positive, and usually lower risks. building society savings agreement/ life insurance are also positive indicators.Cars deapreciate quickly so other factors are important to be considered. No asset ownership increases risk for lenders, as they can not be used as a backup if applicant cannot repay loan',
+    'Age': 'Younger applicants may have less financial stability and less credit history. Older applicants are more likely to be financially stable. ',
+    'Other_installments': 'Multiple loans are higher risk. Store installments might indicate over-borrowing. No other installments are positive',
+    'Housing': 'Renting indicates lack of home ownership, which can be used as collateral and additional monthly expenses. Homeownership generally positive, as it indicates financial stability and lower risk. Living for free means less financial obligations, but also might indicate financial instability',
+    'Number_credits': 'Number of existing credits indicates applicant behavior. Multiple credits is higher risk due to risk of over-borrowing',
+    'Job': 'Unemployed or unskilled workers are high risk for lenders due to lower income levels and financial instability. Skilled and highly qualified employees are positive factor',
+    'Number_dependents': 'Higher number of dependents means higher financial comittments and less flexibility. ',
+    'Telephone': 'No telephone registration might indicate financial instability and lack of communication channel.',
+    'Foreign_worker': 'Foreign workers may have less credit history and less access to financial services. This can be a risk factor for lenders',
+}
+def shap_graph_global(features, feature_contributions):
+    G = nx.DiGraph()
+    G.add_node("Explanation", label ="Explanation")
+
+    for i in range (len(features)):
+
+        G.add_node(features[i], label = features[i])
+        G.add_edge("Explanation", features[i], label = f"Contributes {feature_contributions[i]}")
+        feature_descr = domain_knowledge[features[i]]["description"]
+        G.add_node(feature_descr, label = feature_descr)
+        G.add_edge(features[i], feature_descr, label = "Description")
+        G.add_node(domain_knowledge_global_shap[features[i]], label = domain_knowledge_global_shap[features[i]])
+        G.add_edge(features[i], domain_knowledge_global_shap[features[i]], label = "Global explanation")
+    
+    return G
+
+def depth_first_search_shap_global(graph, node, visited, explanation, idx = 0):
+    visited.add(node)
+    for neighbor in graph.neighbors(node):
+        if graph.out_degree(neighbor) == 0:
+            idx += 1
+            if idx % 2 == 1:
+                explanation.append(f"{neighbor}:")
+            if idx % 2 == 0:
+                explanation.append(f"{neighbor} \n")
+            
+        if neighbor not in visited:
+            depth_first_search_shap_global(graph, neighbor, visited, explanation, idx)
+    return explanation
+
+def shap_nle_global(graph, root_node):
+    explanation = []
+    explanation = depth_first_search_shap_global(graph, root_node, set(), explanation)
+    print(explanation)
+    
+    return "".join(explanation)
+
+
+'''
+def fairness_graph(overall, by_group, group_min, group_max, diff_ratio, fairness_metrics, feature):
+    G = nx.DiGraph()
+    G.add_node("Explanation", label ="Explanation")
+    G.add_node("Overall Performance", label = "Overall Performance")
+
+    G.add_edge("Explanation", "Overall Performance", label = "Overall Metrics")
+
+    for metric, value in overall.items():
+        G.add_node(metric, label = f"{metric}: {value}")
+        G.add_edge("Overall Performance", metric, label = "Overall Metric")
+
+    G.add_node(feature, label = feature)
+    G.add_edge("Explanation", feature, label = feature)
+
+    feature_descr = domain_knowledge[feature]["description"]
+    G.add_node(feature_descr, label = feature_descr)
+    G.add_edge(feature, feature_descr, label = "Description")
+
+    G.add_node("Personal Status Performance", label = "Personal Status Performance")
+    G.add_edge("Personal Status", "Personal Status Performance", label = "By Group Metrics")
+
+    G.add_node("Group Min", label = f"Group Min")
+    G.add_edge("Personal Status Performance", "Group Min", label = "Group Min")
+    G.add_node("Group Max", label = f"Group Max")
+    G.add_edge("Personal Status Performance", "Group Max", label = "Group Max")
+
+    for col, values in by_group.items():
+        G.add_node(col, label = col)
+        G.add_edge("Personal Status Performance", col, label = "By Group Metric")
+
+        G.add_node(overall.loc[col], label = f"Overall: {overall.loc[col]}")
+        G.add_edge("Personal Status Performance", overall.loc[col], label = "Overall Metric")
+
+        G.add_node(group_max.loc[col], label = f"Group Max: {group_max.loc[col]}")
+
+        for index, value in values.items():
+            G.add_node(index, label = index)
+            G.add_edge(col, index, label = f"Group: {index}")
+
+            G.add_node(value, label = f"{value}")
+            G.add_edge(index, value, label = "Group Metric")
+
+
+
+
+
+
+
+
+
+    return ""
+'''
+def fairness_graph(overall, by_group, group_min, group_max, diff, ratio, overall_diff, overall_ratio, fairness_metrics, feature):
+
+
+    G = nx.DiGraph()
+
+    G.add_node("Explanation", label ="Explanation")
+    G.add_node(feature, label = feature)
+    G.add_edge("Explanation", feature, label = feature)
+    feature_descr = domain_knowledge[feature]["description"]
+    G.add_node(feature_descr, label = feature_descr)
+    G.add_edge(feature, feature_descr, label = "Description")
+
+    for col, values in by_group.items():
+        G.add_node(col, label = col)
+        G.add_edge(feature, col, label = "Metric")
+
+        overall = overall.loc[col]
+        G.add_node(f"Overall: {overall}", label = f"Overall: {round(overall,2)}")
+        G.add_edge(col, f"Overall: {overall}", label = "Overall Metric")
+        '''
+        diff = diff.loc[col]
+        G.add_node(f"Difference: {diff}", label = f"Difference: {diff}")
+        G.add_edge(col, f"Difference: {diff}", label = "Difference")
+        '''
+        ratio = ratio.loc[col]
+        G.add_node(f"Ratio: {ratio}", label = f"Ratio: {round(ratio,2)}")
+        G.add_edge(col, f"Ratio: {ratio}", label = "Ratio")
+        '''
+        overall_diff = overall_diff.loc[col]
+        G.add_node(f"Overall Difference: {overall_diff}", label = f"Overall Difference: {overall_diff}")
+        G.add_edge(col, f"Overall Difference: {overall_diff}", label = "Overall Difference")
+        '''
+        overall_ratio = overall_ratio.loc[col]
+        G.add_node(f"Overall Ratio: {overall_ratio}", label = f"Overall Ratio: {round(overall_ratio,2)}")
+        G.add_edge(col, f"Overall Ratio: {overall_ratio}", label = "Overall Ratio")
+
+        for index, value in values.items():
+            G.add_node(index, label = index)
+            G.add_edge(col, index, label = "Group Metric")
+
+            index_descr = domain_knowledge[feature]["values"][index]
+            G.add_node(index_descr, label = index_descr)
+            G.add_edge(index, index_descr, label = "Description")
+            G.add_node(value, label = round(value,2))
+            if value == group_max[col]:
+                G.add_node("Group Max", label = "Group Max")
+                G.add_edge(index, "Group Max", label = "Group Max")
+            if value == group_min[col]:
+                G.add_node("Group Min", label = "Group Min")
+                G.add_edge(index, "Group Min", label = "Group Min")
+            G.add_edge(index, value, label = "Value of Metric")
+
+    G.add_node("Fairness metrics", label = "Fairness metrics")
+    G.add_edge(feature, "Fairness metrics", label = "Fairness metrics")
+    for metric, value in fairness_metrics.items():
+        G.add_node(metric, label = metric)
+        G.add_edge("Fairness metrics", metric, label = "Fairness Metric")
+        G.add_node(value, label = round(value,2))
+        G.add_edge(metric, value, label = "Value of Metric")
+
+    return G
 def other_chatbot(request):
     if request.method == "POST":
         user_input = request.POST.get("user_input")
@@ -837,36 +1013,51 @@ def other_chatbot(request):
                               'Personal_status', 'Other_debtors', 'Residence', 'Property', 'Age', 
                               'Other_installments', 'Housing', 'Number_credits', 'Job', 'Number_dependents', 
                               'Telephone', 'Foreign_worker', 'target'] 
+            
             X = german_credit_data.loc[:, german_credit_data.columns != "target"]
+            y = german_credit_data["target"]
+            y = y.replace({1: 0, 2: 1})
+            X_train, _, _, _  = train_test_split(X, y, test_size=0.2, random_state=42) 
             explainer = shap.Explainer(model1)
             
-            shap_values = explainer(X)
-            #feature_contributions = shap_values.values
-            #feature_names = shap_values.feature_names
-            #data = shap_values.data
-            #print(feature_contributions.shape)
-            #print(len(feature_names))
-            #print(data.shape)
-            #print(X.shape)
-            # change shap values to X_test
-            mean_abs_values = np.abs(shap_values.values).mean(axis=0)
+            shap_values = explainer(X_train)
+            
+            mean_abs_values = np.abs(shap_values.values).mean(axis=0) 
+            print(mean_abs_values)
+            top_10_indices = np.argsort(-mean_abs_values)[:10]
+            print(top_10_indices)
 
-            feature_importance = pd.DataFrame({
-                'Feature': shap_values.feature_names,
-                'Mean Absolute Value': mean_abs_values,
-            })
+            feature_names = np.array(shap_values.feature_names)
+            feature_names = feature_names[top_10_indices]
+            
 
-            feature_importance = feature_importance.sort_values(by='Mean Absolute Value', ascending=False)
-            print(feature_importance.head(4))
-            response = "<br>"
-            for index, row in feature_importance.iterrows():
-                print(f"Feature: {row['Feature']}, Mean Absolute Value: {row['Mean Absolute Value']}")
-                response += "Feature: " + row['Feature'] + ", Mean Absolute Value: " + str(row['Mean Absolute Value']) + "<br>"
-                
-            print(response)
+            
+            #print(feature_names)
+            # shap.plots.bar(shap_values)
+            
+            
+
+            G = shap_graph_global(feature_names, mean_abs_values[:10])
+            
+            pos = nx.spring_layout(G) 
+            
+            edge_labels = nx.get_edge_attributes(G, 'label')
+            
+            #nx.draw(G, pos, with_labels=True, node_size = 900, font_size = 10)
+            #nx.draw_networkx_edge_labels(G, pos, edge_labels=edge_labels)
+            #plt.savefig("shap_graph_global.png")
+            #plt.close()
+
+            A = nx.nx_agraph.to_agraph(G)
+            #A.layout(prog='dot')
+            #A.draw('shap_graph_global.pdf')
+            
+            response = shap_nle_global(G, "Explanation")
 
             # shap.summary_plot(shap_values, X)
             return JsonResponse({'answer': response})
+        
+        
         if user_input == "I want to see the fairness of the model":
             X_PATH = os.path.join(os.path.dirname(__file__), "statlog_german_credit_data")
 
@@ -877,86 +1068,269 @@ def other_chatbot(request):
                               'Other_installments', 'Housing', 'Number_credits', 'Job', 'Number_dependents', 
                               'Telephone', 'Foreign_worker', 'target'] 
             X = german_credit_data.loc[:, german_credit_data.columns != "target"]
+
             y = german_credit_data["target"]
-            y = y.replace({1: 0, 2: 1})
+            y = y.replace(2, 0) 
             X_train, X_test, y_train, y_test  = train_test_split(X, y, test_size=0.2, random_state=42) # 80% training and 20% test
 
-            
-
             y_pred = model1.predict(X_test)
+
+
             #accuracy = np.mean(y_pred == y_test)
             accuracy = accuracy_score(y_test, y_pred)
             precision = precision_score(y_test, y_pred)
             #print(f"Precision: {precision}")
-            #print(f"Accuracy: {accuracy}")
+            # print(f"Accuracy: {accuracy}")
             
 
             personal_status = X_test["Personal_status"]
-            age = X_test["Age"]
+            
             foreign_worker = X_test["Foreign_worker"]
             
             metric_frame_personal_status = MetricFrame(
                 metrics={"accuracy": accuracy_score, 
-                         # "precision": precision_score, 
-                         # "recall": recall_score, 
-                         # "f1": f1_score,
-                         # "selection_rate": selection_rate, 
-                         # "count": count, 
-                         # "false_positive_rate": false_positive_rate, 
-                         # "false_negative_rate": false_negative_rate
+                         
+                    
+                    
+                         #"precision": precision_score, 
+                         #"recall/ true_positive_rate": true_positive_rate,
+                         #"f1": f1_score,
+                         #"selection_rate": selection_rate, 
+                         #"count": count, 
+                         #"false_positive_rate": false_positive_rate, 
+                         #"false_negative_rate": false_negative_rate,
+                         #"true_positive_rate": true_positive_rate,
+                         #"true_negative_rate": true_negative_rate,
+                         #"mean_prediction": mean_prediction,   
+
+                         
                          },
                 y_true=y_test,
                 y_pred=y_pred,
                 sensitive_features=personal_status,
             )
-            # print("demographic parity")
-            # print(demographic_parity_ratio(y_test, y_pred, sensitive_features=personal_status))
-            # print("equalized odds")
-            # print(equalized_odds_ratio(y_test, y_pred, sensitive_features=personal_status))
-            #print(metric_frame_personal_status.overall)
-            #print(metric_frame_personal_status.by_group)
+            
+            overall_personal_status = metric_frame_personal_status.overall
+            
+            by_group_personal_status = metric_frame_personal_status.by_group
+
+            group_min_personal_status = metric_frame_personal_status.group_min()
+
+            group_max_personal_status = metric_frame_personal_status.group_max()
+
+            diff_personal_status = metric_frame_personal_status.difference()
+
+            ratio_personal_status = metric_frame_personal_status.ratio()
+
+            overall_diff_personal_status = metric_frame_personal_status.difference(method = "to_overall")
+
+            overall_ratio_personal_status = metric_frame_personal_status.ratio(method = "to_overall")
+
+            
+
+            demographic_parity_diff_personal_status = demographic_parity_difference(y_true = y_test,
+                                                               y_pred = y_pred,
+                                                               sensitive_features=personal_status,)
+            
+            demographic_parity_ratio_personal_status  = demographic_parity_ratio(y_true = y_test,
+                                                               y_pred = y_pred,
+                                                               sensitive_features=personal_status,)
+            equalized_odds_diff_personal_status  = equalized_odds_difference(y_true = y_test,
+                                                             y_pred = y_pred,
+                                                             sensitive_features=personal_status,)
+            equalized_odds_ratio_personal_status  = equalized_odds_ratio(y_true = y_test,
+                                                         y_pred = y_pred,
+                                                         sensitive_features=personal_status,)
+            equal_opportunity_diff_personal_status  = equal_opportunity_difference(y_true = y_test,
+                                                                y_pred = y_pred,
+                                                                sensitive_features=personal_status,)
+            equal_opportunity_ratio_personal_status  = equal_opportunity_ratio(y_true = y_test,
+                                                                y_pred = y_pred,
+                                                                sensitive_features=personal_status,)
+            fairness_metrics_personal_status = {
+                #"Demographic Parity Difference": demographic_parity_diff_personal_status,
+                "Demographic Parity Ratio": demographic_parity_ratio_personal_status,
+                #"Equalized Odds Difference": equalized_odds_diff_personal_status,
+                "Equalized Odds Ratio": equalized_odds_ratio_personal_status,
+                #"Equal Opportunity Difference": equal_opportunity_diff_personal_status,
+                "Equal Opportunity Ratio": equal_opportunity_ratio_personal_status,
+            }
+            
 
 
+            
+            
+            '''
+            G_personal_status = fairness_graph(overall_personal_status, by_group_personal_status, group_min_personal_status, group_max_personal_status, diff_personal_status, ratio_personal_status, overall_diff_personal_status, overall_ratio_personal_status, fairness_metrics_personal_status, "Personal_status")
 
-            metric_frame_age = MetricFrame(
+            pos = nx.spring_layout(G)
+            edge_labels = nx.get_edge_attributes(G, 'label')
+            nx.draw(G, pos, with_labels=True, node_size = 900, font_size = 10)
+            nx.draw_networkx_edge_labels(G, pos, edge_labels=edge_labels)
+            plt.savefig("personal_stat.png")
+            plt.close()
+            A = nx.nx_agraph.to_agraph(G)
+            A.layout(prog='dot')
+            A.draw('personal_stat.pdf')
+            plt.close()
+            '''
+            
+            X_bin = X_test.copy()
+            
+            X_bin["Age_group"] = pd.cut(X_bin["Age"], bins=[19, 25, 35, 45, 55, 65, 75], labels=["19-25", "26-35", "36-45", "46-55", "56-65", "66-75"])
+            metric_frame_age_bin = MetricFrame(
                 metrics={"accuracy": accuracy_score, 
-                         # "precision": precision_score, 
-                         # "recall": recall_score, 
-                         # "f1": f1_score,
-                         # "selection_rate": selection_rate, 
-                         # "count": count, 
-                         # "false_positive_rate": false_positive_rate, 
-                         # "false_negative_rate": false_negative_rate
+                         "precision": precision_score, 
+                         "recall/ true_positive_rate": true_positive_rate,
+                         "f1": f1_score,
+                         "selection_rate": selection_rate, 
+                         "count": count, 
+                         "false_positive_rate": false_positive_rate, 
+                         "false_negative_rate": false_negative_rate,
+                         "true_positive_rate": true_positive_rate,
+                         "true_negative_rate": true_negative_rate,
+                         "mean_prediction": mean_prediction, 
                          },
                 y_true=y_test,
                 y_pred=y_pred,
-                sensitive_features=age,
+                sensitive_features=X_bin["Age_group"],
             )
             
-            # print(metric_frame_age.overall)
-            # print(metric_frame_age.by_group)
+            overall_age = metric_frame_age_bin.overall
+            by_group_age = metric_frame_age_bin.by_group
+            group_min_age = metric_frame_age_bin.group_min()
+            group_max_age = metric_frame_age_bin.group_max()
+            diff_age = metric_frame_age_bin.difference()
+            ratio_age = metric_frame_age_bin.ratio()
+            overall_diff_age = metric_frame_age_bin.difference(method = "to_overall")
+            overall_ratio_age = metric_frame_age_bin.ratio(method = "to_overall")
+            demographic_parity_diff_age = demographic_parity_difference(y_true = y_test,
+                                                               y_pred = y_pred,
+                                                               sensitive_features=X_bin["Age_group"],)
+            demographic_parity_ratio_age  = demographic_parity_ratio(y_true = y_test,
+                                                               y_pred = y_pred,
+                                                               sensitive_features=X_bin["Age_group"],)
+            equalized_odds_diff_age  = equalized_odds_difference(y_true = y_test,
+                                                             y_pred = y_pred,
+                                                             sensitive_features=X_bin["Age_group"],)
+            equalized_odds_ratio_age  = equalized_odds_ratio(y_true = y_test,
+                                                         y_pred = y_pred,
+                                                         sensitive_features=X_bin["Age_group"],)
+            equal_opportunity_diff_age  = equal_opportunity_difference(y_true = y_test,
+                                                                y_pred = y_pred,
+                                                                sensitive_features=X_bin["Age_group"],)
+            equal_opportunity_ratio_age  = equal_opportunity_ratio(y_true = y_test, 
+                                                                y_pred = y_pred,
+                                                                sensitive_features=X_bin["Age_group"],)
+            fairness_metrics_age = {
+                #"Demographic Parity Difference": demographic_parity_diff_age,
+                "Demographic Parity Ratio": demographic_parity_ratio_age,
+                #"Equalized Odds Difference": equalized_odds_diff_age,
+                "Equalized Odds Ratio": equalized_odds_ratio_age,
+                #"Equal Opportunity Difference": equal_opportunity_diff_age,
+                "Equal Opportunity Ratio": equal_opportunity_ratio_age,
+            }
+            
+            #G_age_bin = fairness_graph(overall_age, by_group_age, group_min_age, group_max_age, diff_age, 
+            #                           ratio_age, overall_age, overall_ratio_age, fairness_metrics_age, "Age")
+
+            
+
 
             metric_frame_foreign_worker = MetricFrame(
                 metrics={"accuracy": accuracy_score, 
-                         # "precision": precision_score, 
-                         # "recall": recall_score, 
-                         # "f1": f1_score,
-                         # "selection_rate": selection_rate, 
-                         # "count": count, 
-                         # "false_positive_rate": false_positive_rate, 
-                         # "false_negative_rate": false_negative_rate
+                         "precision": precision_score, 
+                         "recall/ true_positive_rate": true_positive_rate,
+                         "f1": f1_score,
+                         "selection_rate": selection_rate, 
+                         "count": count, 
+                         "false_positive_rate": false_positive_rate, 
+                         "false_negative_rate": false_negative_rate,
+                         "true_positive_rate": true_positive_rate,
+                         "true_negative_rate": true_negative_rate,
+                         "mean_prediction": mean_prediction, 
                          },
+                    
                 y_true=y_test,
                 y_pred=y_pred,
                 sensitive_features=foreign_worker,
             )
-            # print(metric_frame_foreign_worker.overall)
-            # print(metric_frame_foreign_worker.by_group)
+            
+            overall_foreign_worker = metric_frame_foreign_worker.overall
+            by_group_foreign_worker = metric_frame_foreign_worker.by_group
+            group_min_foreign_worker = metric_frame_foreign_worker.group_min()
+            group_max_foreign_worker = metric_frame_foreign_worker.group_max()  
+            diff_foreign_worker = metric_frame_foreign_worker.difference()
+            ratio_foreign_worker = metric_frame_foreign_worker.ratio()
+            overall_diff_foreign_worker = metric_frame_foreign_worker.difference(method = "to_overall")
+            overall_ratio_foreign_worker = metric_frame_foreign_worker.ratio(method = "to_overall")
+            demographic_parity_diff_foreign_worker = demographic_parity_difference(y_true = y_test,
+                                                               y_pred = y_pred,
+                                                               sensitive_features=foreign_worker,)
+            demographic_parity_ratio_foreign_worker  = demographic_parity_ratio(y_true = y_test,
+                                                               y_pred = y_pred,
+                                                               sensitive_features=foreign_worker,)
+            equalized_odds_diff_foreign_worker  = equalized_odds_difference(y_true = y_test,
+                                                             y_pred = y_pred,
+                                                             sensitive_features=foreign_worker,)
+            equalized_odds_ratio_foreign_worker  = equalized_odds_ratio(y_true = y_test,
+                                                         y_pred = y_pred,
+                                                         sensitive_features=foreign_worker,)
+            equal_opportunity_diff_foreign_worker  = equal_opportunity_difference(y_true = y_test,
+                                                                y_pred = y_pred,
+                                                                sensitive_features=foreign_worker,)
+            equal_opportunity_ratio_foreign_worker  = equal_opportunity_ratio(y_true = y_test,
+                                                                y_pred = y_pred,
+                                                                sensitive_features=foreign_worker,)
+            fairness_metrics_foreign_worker = { 
+                #"Demographic Parity Difference": demographic_parity_diff_foreign_worker,
+                "Demographic Parity Ratio": demographic_parity_ratio_foreign_worker,
+                #"Equalized Odds Difference": equalized_odds_diff_foreign_worker,
+                "Equalized Odds Ratio": equalized_odds_ratio_foreign_worker,
+                #"Equal Opportunity Difference": equal_opportunity_diff_foreign_worker,
+                "Equal Opportunity Ratio": equal_opportunity_ratio_foreign_worker,
+            }
+            #G_foreign_worker = fairness_graph(overall_foreign_worker, by_group_foreign_worker, group_min_foreign_worker, group_max_foreign_worker, diff_foreign_worker,
+            #                           ratio_foreign_worker, overall_diff_foreign_worker, overall_ratio_foreign_worker, fairness_metrics_foreign_worker, "Foreign_worker")
+
+
+
+            personal_status_mapping = {
+                "A91": "Male",
+                "A92": "Female",
+                "A93": "Male",
+                "A94": "Male",
+                "A95": "Female", 
+            }
+            X_map = X_test.copy()
+            X_map["sex"] = X_map['Personal_status'].map(personal_status_mapping)
+            metric_frame_sex = MetricFrame(
+                metrics={"accuracy": accuracy_score, 
+                         "precision": precision_score, 
+                         "recall/ true_positive_rate": true_positive_rate,
+                         "f1": f1_score,
+                         "selection_rate": selection_rate, 
+                         "count": count, 
+                         "false_positive_rate": false_positive_rate, 
+                         "false_negative_rate": false_negative_rate,
+                         "true_positive_rate": true_positive_rate,
+                         "true_negative_rate": true_negative_rate,
+                         "mean_prediction": mean_prediction, 
+                         },
+                    
+                y_true=y_test,
+                y_pred=y_pred,
+                sensitive_features=X_map["sex"],
+            )
+            
+            print(metric_frame_sex.by_group)
+
 
             feature_name = "Foreign_worker"
             feature_index = list(X_test.columns).index(feature_name)
-            # print(feature_index)
 
+            # print(feature_index)
+            '''
             X = german_credit_data.loc[:, german_credit_data.columns != "target"]
             explainer = shap.Explainer(model1)
             
@@ -1008,7 +1382,93 @@ def other_chatbot(request):
             feature_importances = model1.get_feature_importance()
             print(pd.DataFrame({'Feature': X.columns, 'Importance': feature_importances}).sort_values(by='Importance', ascending=False))
             print(X["Foreign_worker"].value_counts())
+            '''
             return JsonResponse({'answer': "Sorry, I didn't understand that."})
+        if user_input == "I want to see SHAP fairness":
+            X_PATH = os.path.join(os.path.dirname(__file__), "statlog_german_credit_data")
+
+            german_credit_data = pd.read_csv(X_PATH, index_col=0) 
+            german_credit_data.columns = ['Account_status', 'Months', 'Credit_history', 'Purpose', 
+                              'Credit_amount', 'Savings', 'Employment', 'Installment_rate', 
+                              'Personal_status', 'Other_debtors', 'Residence', 'Property', 'Age', 
+                              'Other_installments', 'Housing', 'Number_credits', 'Job', 'Number_dependents', 
+                              'Telephone', 'Foreign_worker', 'target'] 
+            X = german_credit_data.loc[:, german_credit_data.columns != "target"]
+
+            y = german_credit_data["target"]
+            y = y.replace(2, 0) 
+            X_train, X_test, y_train, y_test  = train_test_split(X, y, test_size=0.2, random_state=42) 
+
+            X_filtered = X_train.copy()
+            X_filtered_male_91 = X_filtered[X_filtered["Personal_status"] == "A91"]
+
+            explainer = shap.Explainer(model1)
+
+            shap_values_male_91 = explainer(X_filtered_male_91)
+            #shap.plots.bar(shap_values_male_91)
+
+            X_filtered_female_92 = X_filtered[X_filtered["Personal_status"] == "A92"]
+            shap_values_female_92 = explainer(X_filtered_female_92)
+            # shap.plots.bar(shap_values_female_92)
+
+            X_filtered_male_93 = X_filtered[X_filtered["Personal_status"] == "A93"]
+            shap_values_male_93 = explainer(X_filtered_male_93)
+            #shap.plots.bar(shap_values_male_93)
+
+            X_filtered_male_94 = X_filtered[X_filtered["Personal_status"] == "A94"]
+            shap_values_male_94 = explainer(X_filtered_male_94)
+            #shap.plots.bar(shap_values_male_94)
+
+
+            # doesnt exist?
+            '''
+            X_filtered_female_95 = X_filtered[X_filtered["Personal_status"] == "A95"]
+            shap_values_female_95 = explainer(X_filtered_female_95)
+            shap.plots.bar(shap_values_female_95)
+            '''
+
+            X_filtered_fk = X_filtered[X_filtered["Foreign_worker"] == "A201"]
+            shap_values_fk = explainer(X_filtered_fk)
+            #shap.plots.bar(shap_values_fk)
+
+            X_filtered_nf = X_filtered[X_filtered["Foreign_worker"] == "A202"]
+            shap_values_nf = explainer(X_filtered_nf)
+            #shap.plots.bar(shap_values_nf)
+
+            X_filtered_25 = X_filtered[X_filtered["Age"] < 25]
+            shap_values_25 = explainer(X_filtered_25)
+            #shap.plots.bar(shap_values_25)
+
+            X_filtered_35 = X_filtered[X_filtered["Age"] < 35]
+            shap_values_35 = explainer(X_filtered_35)
+            #shap.plots.bar(shap_values_35)
+
+            X_filtered_45 = X_filtered[X_filtered["Age"] < 45]
+            shap_values_45 = explainer(X_filtered_45)
+            #shap.plots.bar(shap_values_45)
+
+            X_filtered_55 = X_filtered[X_filtered["Age"] < 55]
+            shap_values_55 = explainer(X_filtered_55)
+            #shap.plots.bar(shap_values_55)
+
+            X_filtered_65 = X_filtered[X_filtered["Age"] < 65]
+            shap_values_65 = explainer(X_filtered_65)
+            #shap.plots.bar(shap_values_65)
+
+            X_filtered_75 = X_filtered[X_filtered["Age"] <= 75]
+            shap_values_75 = explainer(X_filtered_75)
+            #shap.plots.bar(shap_values_75)
+
+
+
+
+
+            
+
+
+
+            return JsonResponse({'answer': "Sorry, I didn't understand that."})
+
 
 
         return JsonResponse({'answer': "Sorry, I didn't understand that."})
