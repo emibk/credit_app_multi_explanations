@@ -25,8 +25,7 @@ urlpatterns = [
     path('accounts/', include('django.contrib.auth.urls')),
     path('', views.index, name='index'),
     path('check_loan/', views.check_loan, name = 'check_loan'),
-    path('loan_prediction/', views.loan_prediction, name = 'loan_prediction'),
-    path('chatbot/', views.chatbot, name = 'chatbot'),
-    path('other_chatbot/', views.other_chatbot, name = 'other_chatbot'),
+    path('application_explanation/', views.application_explanation, name = 'application_explanation'),
+    path('model_explanation/', views.model_explanation, name = 'model_explanation'),
 
 ]

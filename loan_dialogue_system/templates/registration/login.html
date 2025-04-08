@@ -1,26 +1,35 @@
 <!DOCTYPE html>
 <html lang="en">
 <head>
-    <title>Loan Application System</title>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Loan Prediction app</title>
+  <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.0.2/dist/css/bootstrap.min.css" rel="stylesheet" integrity="sha384-EVSTQN3/azprG1Anm3QDgpJLIm9Nao0Yz1ztcQTwFspd3yD65VohhpuuCOmLASjC" crossorigin="anonymous">
 </head>
-<body>
-    <h1> Login to Loan Application System</h1>
-    {% if form.errors %}
-        <p>Wrong username and password. Try again.</p>
-    {% endif %}
+<body class = "p-3 mb-2 bg-dark text-white">
+  <div class="d-flex justify-content-center align-items-center min-vh-100">
+    <div class="row justify-content-center">
+        <div class="col">
+          <h1> Login </h1>
+          {% if form.errors %}
+              <p>Wrong username and password. Try again.</p>
+          {% endif %}
 
-    <div class = "form">
-        <form method="post" action="{% url 'login' %}">
-          {% csrf_token %}
-            <label for="uname"><b>{{form.username.label_tag}}</b></label>
-            {{ form.username }}
-         </br>
-          <label for="upass"><b>{{ form.password.label_tag }}</b></label>
-            {{ form.password }}
-          <input type="submit" value="login">
-          <input type="hidden" name="next" value="{{ next }}">
-        </form>
-
+          <div class = "form">
+              <form method="post" action="{% url 'login' %}">
+                {% csrf_token %}
+                  <label for="uname"><b>{{form.username.label_tag}}</b></label>
+                  {{ form.username }}
+              </br>
+                <label for="upass"><b>{{ form.password.label_tag }}</b></label>
+                  {{ form.password }}
+                <input type="submit" value="login">
+                <input type="hidden" name="next" value="{{ next }}">
+              </form>
+          </div>
+      </div>
+    </div>
+  </div>
 </body>
 
 </html>

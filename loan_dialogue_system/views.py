@@ -1,6 +1,7 @@
 from django.shortcuts import render
 from django.http import HttpResponse
 from django.http import JsonResponse
+from django.contrib.auth.decorators import login_required, user_passes_test
 import os
 import pickle
 import pandas as pd
@@ -28,8 +29,11 @@ MODEL_PATH1 = os.path.join(os.path.dirname(__file__), "catboost_model_1.pkl")
 with open(MODEL_PATH1, "rb") as f:
     model1 = pickle.load(f)
 
+def is_loan_applicant(user):
+    return user.groups.filter(name='loan_applicant').exists()
 
-
+@login_required
+@user_passes_test(is_loan_applicant)
 def check_loan(request):
     prediction = None
     exp_df = pd.DataFrame()
@@ -149,10 +153,6 @@ def check_loan(request):
 
 
     return render(request, "check_loan.html")
-
-def loan_prediction(request):
-    return render(request, "loan_prediction.html")
- 
 
 
 
@@ -547,6 +547,7 @@ domain_knowledge_shap = {
         "and other loans",
         "46-55": "Older applicants may have more financial stability, but there is a risk of financial stress due to multiple debts and insufficient savings",
         "56-65": "Older applicants near retirement have limited future earning potential, which can increase credit risk without sufficient savings",
+        "65+": "Older applicants may have limited future earning potential, which can increase credit risk without sufficient savings",
 
     },
     'Other_installments':{
@@ -642,29 +643,45 @@ def shap_graph(features, data, feature_contributions, prediction):
 
         if features[i] == "Months":
             if data[i] < 36:
+                G.add_node('<36 months', label = '<36 months')
+                G.add_edge(data[i], '<36 months', label = "Describes")
                 exp = domain_knowledge_shap[features[i]['<36 months']]
                 G.add_node(exp, label = "short loan")
                 G.add_edge(data[i], exp, label = "Value Explanation")
             else:
+                G.add_node('36-72 months', label = '36-72 months')
+                G.add_edge(data[i], '36-72 months', label = "Describes")
                 exp = domain_knowledge_shap[features[i]['36-72 months']]
                 G.add_node(exp, label = "long loan")
                 G.add_edge(data[i], exp, label = "Value Explanation")
         
         if features[i] == "Credit_amount":
             if data[i] < 6000:
+                G.add_node('250-6000', label = '250-6000')
+                G.add_edge(data[i], '250-6000', label = "Describes")
                 exp = domain_knowledge_shap[features[i]['250-6000']]
                 G.add_node(exp, label = "low amount")
                 G.add_edge(data[i], exp, label = "Value Explanation")
             elif data[i] < 12000:
+                G.add_node('6000-12000', label = '6000-12000')
+                G.add_edge(data[i], '6000-12000', label = "Describes")
                 exp = domain_knowledge_shap[features[i]['6000-12000']]
                 G.add_node(exp, label = "moderate amount")
                 G.add_edge(data[i], exp, label = "Value Explanation")
             else:
+                G.add_node('12000-18424', label = '12000-18424')
+                G.add_edge(data[i], '12000-18424', label = "Describes")
                 exp = domain_knowledge_shap[features[i]['12000-18424']]
                 G.add_node(exp, label = "high amount")
                 G.add_edge(data[i], exp, label = "Value Explanation")
         
         if features[i] == "Installment_rate":
+            if data[i] < 2:
+                G.add_node('<2%', label = '<2%')
+                G.add_edge(data[i], '<2%', label = "Describes")
+            else:
+                G.add_node('2-4%', label = '2-4%')
+                G.add_edge(data[i], '2-4%', label = "Describes")
             exp = domain_knowledge_shap[features[i]]["explanation"]
             G.add_node(exp, label = "installment rate")
             G.add_edge(data[i], exp, label = "Value Explanation")
@@ -675,39 +692,70 @@ def shap_graph(features, data, feature_contributions, prediction):
             G.add_edge(data[i], exp, label = "Value Explanation")
         
         if features[i] == "Residence":
+            if data[i] < 2:
+                G.add_node('<2 years', label = '<2 years')
+                G.add_edge(data[i], '<2 years', label = "Describes")
+            else:
+                G.add_node('2-4 years', label = '2-4 years')
+                G.add_edge(data[i], '2-4 years', label = "Describes")
             exp = domain_knowledge_shap[features[i]]["explanation"]
             G.add_node(exp, label = "residence")
             G.add_edge(data[i], exp, label = "Value Explanation")
         
         if features[i] == "Age":
-            if data[i] < 25:
-                exp = domain_knowledge_shap[features[i]['19-25']]
+            if data[i] <= 25:
+                G.add_node('19-25', label = '19-25')
+                G.add_edge(data[i], '19-25', label = "Describes")
+                exp = domain_knowledge_shap[features[i]]['19-25']
                 G.add_node(exp, label = "young")
                 G.add_edge(data[i], exp, label = "Value Explanation")
-            elif data[i] < 35:
-                exp = domain_knowledge_shap[features[i]['26-35']]
+            elif data[i] <= 35:
+                G.add_node('26-35', label = '26-35')
+                G.add_edge(data[i], '26-35', label = "Describes")
+                exp = domain_knowledge_shap[features[i]]['26-35']
                 G.add_node(exp, label = "young adult")
                 G.add_edge(data[i], exp, label = "Value Explanation")
-            elif data[i] < 45:
-                exp = domain_knowledge_shap[features[i]['36-45']]
+            elif data[i] <= 45:
+                G.add_node('36-45', label = '36-45')
+                G.add_edge(data[i], '36-45', label = "Describes")
+                exp = domain_knowledge_shap[features[i]]['36-45']
                 G.add_node(exp, label = "middle aged")
                 G.add_edge(data[i], exp, label = "Value Explanation")
-            elif data[i] < 55:
-                exp = domain_knowledge_shap[features[i]['46-55']]
+            elif data[i] <= 55:
+                G.add_node('46-55', label = '46-55')
+                G.add_edge(data[i], '46-55', label = "Describes")
+                exp = domain_knowledge_shap[features[i]]['46-55']
                 G.add_node(exp, label = "older adult")
                 G.add_edge(data[i], exp, label = "Value Explanation")
-            else:
-                exp = domain_knowledge_shap[features[i]['56-65']]
+            elif data[i] <= 65:
+                G.add_node('56-65', label = '56-65')
+                G.add_edge(data[i], '56-65', label = "Describes")
+                exp = domain_knowledge_shap[features[i]]['56-65']
                 G.add_node(exp, label = "senior")
+                G.add_edge(data[i], exp, label = "Value Explanation")
+            else:
+                G.add_node('65+', label = '65+')
+                G.add_edge(data[i], '65+', label = "Describes")
+                exp = domain_knowledge_shap[features[i]]['65+']
+                G.add_node(exp, label = "elderly")
                 G.add_edge(data[i], exp, label = "Value Explanation")
         
         if features[i] == "Number_credits":
-            exp = domain_knowledge_shap[features[i]]
+            if data[i] < 2:
+                G.add_node('<2', label = '<2')
+                G.add_edge(data[i], '<2', label = "Describes")
+            else:
+                G.add_node('2-4', label = '2-4')
+                G.add_edge(data[i], '2-4', label = "Describes")
+            exp = domain_knowledge_shap[features[i]]["explanation"]
             G.add_node(exp, label = "number of credits")
             G.add_edge(data[i], exp, label = "Value Explanation")
         
         if features[i] == "Number_dependents":
-            exp = domain_knowledge_shap[features[i]]
+            if data[i] <= 2:
+                G.add_node('<=2', label = '<=2')
+                G.add_edge(data[i], '<=2', label = "Describes")
+            exp = domain_knowledge_shap[features[i]]["explanation"]
             G.add_node(exp, label = "number of dependents")
             G.add_edge(data[i], exp, label = "Value Explanation")
         
@@ -718,7 +766,7 @@ def shap_graph(features, data, feature_contributions, prediction):
     return G
 
 
-def depth_first_search_shap(graph, node, visited, exp_pred, exp_outcome, exp_protected, idx = 0):
+def depth_first_search_shap(graph, node, visited, exp_pred, exp_outcome, exp_protected, idx):
     visited.add(node)
     for neighbor in graph.neighbors(node):
         relation = graph.get_edge_data(node, neighbor)["label"]
@@ -727,14 +775,17 @@ def depth_first_search_shap(graph, node, visited, exp_pred, exp_outcome, exp_pro
             exp_pred.append(f"<br> The prediction of '{neighbor}' is based on the following top 5 factors:<ul>")
 
         if graph.out_degree(neighbor) == 0 and relation != "Protected attribute" and relation != "Protected attributes" and relation != "Prediction Meaning":
-            idx += 1
-            if idx % 3 == 0:
-                exp_outcome.append(f"{neighbor}: </li>")
-            elif idx % 3 == 1:
-                exp_outcome.append(f"<li>{neighbor}: ")
+            idx[0] += 1
+            if idx[0] % 3 == 0:
+                exp_outcome.append(f"&nbsp;&nbsp;&#8594;{neighbor} ")
+            elif idx[0] % 3 == 1:
+                if neighbor == "Personal status and sex" or neighbor == "Age in years" or neighbor == "Foreign worker":
+                    exp_outcome.append(f"<li> <strong style='color:red'> {neighbor}: </strong>")
+                else:
+                    exp_outcome.append(f"<li>{neighbor}: ")
             else:
-                label = graph.nodes[neighbor]["label"]
-                exp_outcome.append(f" {label}  </li>")
+                #label = graph.nodes[neighbor]["label"]
+                exp_outcome.append(f" {neighbor}  </li>")
 
         if relation == "Protected attributes":
             exp_protected.append(f"<br> Protected attributes, according to the EU Charter of Fundamental Rights: <br><ul>")
@@ -749,7 +800,8 @@ def depth_first_search_shap(graph, node, visited, exp_pred, exp_outcome, exp_pro
 def shap_nle(graph, root_node):
     explanation = []
     exp_pred, exp_outcome, exp_protected = [], [], []
-    exp_pred, exp_outcome, exp_protected = depth_first_search_shap(graph, root_node, set(), exp_pred, exp_outcome, exp_protected)
+    idx = [0]
+    exp_pred, exp_outcome, exp_protected = depth_first_search_shap(graph, root_node, set(), exp_pred, exp_outcome, exp_protected,idx)
     exp_outcome.append("</ul>")
     exp_protected.append("</ul>")
     if len(exp_protected) > 0:
@@ -759,14 +811,13 @@ def shap_nle(graph, root_node):
     
     return "".join(explanation)
 
-
-def chatbot(request):
+@login_required
+@user_passes_test(is_loan_applicant)
+def application_explanation(request):
     if request.method == "POST":
         prediction = request.session.get("prediction")
         loan_data = request.session.get("loan_data")
-        print(prediction)
         
-
         if not prediction or not loan_data:
             return JsonResponse({'error': 'Please submit a loan application form.'})
         
@@ -823,7 +874,7 @@ def chatbot(request):
             return JsonResponse({'answer': response})
 
         return JsonResponse({'answer': "Sorry, I didn't understand that."})
-    return render(request, "chatbot.html")
+    return render(request, "application_explanation.html")
 
 
 domain_knowledge_global_shap = {
@@ -870,9 +921,9 @@ def depth_first_search_shap_global(graph, node, visited, explanation, idx = 0):
         if graph.out_degree(neighbor) == 0:
             idx += 1
             if idx % 2 == 1:
-                explanation.append(f"{neighbor}:")
+                explanation.append(f"<li>{neighbor}: ")
             if idx % 2 == 0:
-                explanation.append(f"{neighbor} \n")
+                explanation.append(f"&nbsp;&nbsp;&#8594;{neighbor} </li>\n")
             
         if neighbor not in visited:
             depth_first_search_shap_global(graph, neighbor, visited, explanation, idx)
@@ -881,64 +932,67 @@ def depth_first_search_shap_global(graph, node, visited, explanation, idx = 0):
 def shap_nle_global(graph, root_node):
     explanation = []
     explanation = depth_first_search_shap_global(graph, root_node, set(), explanation)
+    explanation.insert(0, "\n <strong>Top 10 most important features:\n </strong><ol>")
+    explanation.append("</ol>")
     print(explanation)
     
     return "".join(explanation)
 
+fairness_graph_domain = {
+    ## Features
+    'Personal_status':{
+        "description":"Personal status and sex",
+        "values": {
+            	"A91" : "male: divorced/separated",
+                "A92" : "female: divorced/separated/married",
+                "A93" : "male: single",
+                "A94": "male: married/widowed",
+                "A95":"female: single",
+        }
 
-'''
-def fairness_graph(overall, by_group, group_min, group_max, diff_ratio, fairness_metrics, feature):
-    G = nx.DiGraph()
-    G.add_node("Explanation", label ="Explanation")
-    G.add_node("Overall Performance", label = "Overall Performance")
+    },
 
-    G.add_edge("Explanation", "Overall Performance", label = "Overall Metrics")
+    "Age_group":{
+        "description": "Age in years",
+        "values": {
+            "19-25": "young (under 25)",
+            "26-35": "26-35",
+            "36-45": "36-45",
+            "46-55": "46-55",
+            "56-65": "56-65",
+            "66-75": "65+",
+        }
+    },
 
-    for metric, value in overall.items():
-        G.add_node(metric, label = f"{metric}: {value}")
-        G.add_edge("Overall Performance", metric, label = "Overall Metric")
+    "Foreign_worker":{
+        "description": "Foreign worker",
+        "values": {
+            "A201": "yes",
+            "A202": "no",
+        }
+    },
 
-    G.add_node(feature, label = feature)
-    G.add_edge("Explanation", feature, label = feature)
+    "Male_female":{
+        "description": "Sex (M/F)",
+        "values": {
+            "Male": "male",
+            "Female": "female,"
+        }
+    },
 
-    feature_descr = domain_knowledge[feature]["description"]
-    G.add_node(feature_descr, label = feature_descr)
-    G.add_edge(feature, feature_descr, label = "Description")
+    ## Fairness metrics
+    "Demographic Parity Ratio":{
+        "description": "A ratio of 1 means equal chances of selection across groups",
+        
+    },
+    "Equalized Odds Ratio": {
+        "description": "A ratio of 1 means equal performance across groups",
+    },
+    "Equal Opportunity Ratio":{
+        "description": "A ratio of 1 means equal performance across groups for positive predictions",
+    }
 
-    G.add_node("Personal Status Performance", label = "Personal Status Performance")
-    G.add_edge("Personal Status", "Personal Status Performance", label = "By Group Metrics")
-
-    G.add_node("Group Min", label = f"Group Min")
-    G.add_edge("Personal Status Performance", "Group Min", label = "Group Min")
-    G.add_node("Group Max", label = f"Group Max")
-    G.add_edge("Personal Status Performance", "Group Max", label = "Group Max")
-
-    for col, values in by_group.items():
-        G.add_node(col, label = col)
-        G.add_edge("Personal Status Performance", col, label = "By Group Metric")
-
-        G.add_node(overall.loc[col], label = f"Overall: {overall.loc[col]}")
-        G.add_edge("Personal Status Performance", overall.loc[col], label = "Overall Metric")
-
-        G.add_node(group_max.loc[col], label = f"Group Max: {group_max.loc[col]}")
-
-        for index, value in values.items():
-            G.add_node(index, label = index)
-            G.add_edge(col, index, label = f"Group: {index}")
-
-            G.add_node(value, label = f"{value}")
-            G.add_edge(index, value, label = "Group Metric")
-
-
-
-
-
-
-
-
-
-    return ""
-'''
+}
 def fairness_graph(overall, by_group, group_min, group_max, diff, ratio, overall_diff, overall_ratio, fairness_metrics, feature):
 
 
@@ -947,9 +1001,9 @@ def fairness_graph(overall, by_group, group_min, group_max, diff, ratio, overall
     G.add_node("Explanation", label ="Explanation")
     G.add_node(feature, label = feature)
     G.add_edge("Explanation", feature, label = feature)
-    feature_descr = domain_knowledge[feature]["description"]
+    feature_descr = fairness_graph_domain[feature]["description"]
     G.add_node(feature_descr, label = feature_descr)
-    G.add_edge(feature, feature_descr, label = "Description")
+    G.add_edge(feature, feature_descr, label = "Feature Description")
 
     for col, values in by_group.items():
         G.add_node(col, label = col)
@@ -976,20 +1030,24 @@ def fairness_graph(overall, by_group, group_min, group_max, diff, ratio, overall
         G.add_edge(col, f"Overall Ratio: {overall_ratio}", label = "Overall Ratio")
 
         for index, value in values.items():
+            if "values" in fairness_graph_domain[feature]:
+                index_descr = fairness_graph_domain[feature]["values"][index]
+                G.add_node(index_descr, label = index_descr)
+                G.add_edge(index, index_descr, label = "Description")
+            G.add_edge(index, value, label = "Value of Metric")
+
             G.add_node(index, label = index)
             G.add_edge(col, index, label = "Group Metric")
-
-            index_descr = domain_knowledge[feature]["values"][index]
-            G.add_node(index_descr, label = index_descr)
-            G.add_edge(index, index_descr, label = "Description")
+            
             G.add_node(value, label = round(value,2))
+
             if value == group_max[col]:
                 G.add_node("Group Max", label = "Group Max")
                 G.add_edge(index, "Group Max", label = "Group Max")
             if value == group_min[col]:
                 G.add_node("Group Min", label = "Group Min")
                 G.add_edge(index, "Group Min", label = "Group Min")
-            G.add_edge(index, value, label = "Value of Metric")
+            
 
     G.add_node("Fairness metrics", label = "Fairness metrics")
     G.add_edge(feature, "Fairness metrics", label = "Fairness metrics")
@@ -997,10 +1055,174 @@ def fairness_graph(overall, by_group, group_min, group_max, diff, ratio, overall
         G.add_node(metric, label = metric)
         G.add_edge("Fairness metrics", metric, label = "Fairness Metric")
         G.add_node(value, label = round(value,2))
-        G.add_edge(metric, value, label = "Value of Metric")
+        G.add_edge(metric, value, label = "Value of Fairness Metric")
+        metric_descr = fairness_graph_domain[metric]["description"]
+        G.add_node(metric_descr, label = metric_descr)
+        G.add_edge(metric, metric_descr, label = "Fairness Metric Description")
 
     return G
-def other_chatbot(request):
+def depth_first_search_fairness(graph, node, visited, explanation, explanation_group, explanation_fairness_m):
+    visited.add(node)
+    for neighbor in graph.neighbors(node):
+        relation = graph.get_edge_data(node, neighbor)["label"]
+        if relation == "Feature Description":
+            explanation.insert(0, f"<strong>\n Feature {neighbor}: \n</strong>")
+        if relation == "Metric":
+            explanation.append(f"<i>\n\n&nbsp;Metrics for {neighbor}:\n</i>")
+            
+        if relation == "Overall Metric":
+            explanation.append(f"&nbsp;&nbsp;{neighbor}\n")
+        '''
+        if relation == "Ratio":
+            explanation.append(f"{neighbor}\n")
+        if relation == "Overall Ratio":
+            explanation.append(f"{neighbor}\n")
+        '''
+            
+        if relation == "Description":
+            explanation_group.append(f"\n &nbsp;&nbsp;&nbsp;&nbsp;&#8594;Group {neighbor}: ")
+        if relation == "Value of Metric":
+            label = graph.nodes[neighbor]["label"]
+            explanation_group.append(f"{label}")
+        if relation == "Group Max":
+            explanation_group.append(f" <strong style='color:red'> This group has the highest value! </strong>")
+        if relation == "Group Min":
+            explanation_group.append(f" <strong style='color:red'> This group has the lowest value!</strong>")
+        
+        if relation == "Fairness metrics":
+            explanation_fairness_m.insert(0, f"<i>\n\n{neighbor}: \n</i>")
+            
+        if relation == "Fairness Metric":
+            explanation_fairness_m.append(f"&nbsp;&nbsp;&nbsp;{neighbor}: ")
+        if relation == "Value of Fairness Metric":
+            label = graph.nodes[neighbor]["label"]
+            explanation_fairness_m.append(f"{label}\n")
+        if relation == "Fairness Metric Description":
+            explanation_fairness_m.append(f"&nbsp;&nbsp;&nbsp;&nbsp;&#8594;{neighbor}\n")
+            
+        if neighbor not in visited:
+            depth_first_search_fairness(graph, neighbor, visited, explanation, explanation_group, explanation_fairness_m)
+    return explanation, explanation_group, explanation_fairness_m
+
+def fairness_nle(graph, root_node):
+    explanation_perf = []
+    explanation_group = []
+    explanation_fairness_m = []
+    explanation_perf, explanation_group, explanation_fairness_m = depth_first_search_fairness(graph, root_node, set(), explanation_perf, explanation_group,
+                                                                                              explanation_fairness_m)
+    explanation_perf.insert(0, f"\n")
+    explanation_group.insert(0, "&nbsp;&nbsp;&nbsp;Group metrics for each value of feature")
+    explanation = explanation_perf + explanation_group + explanation_fairness_m
+    
+    return "".join(explanation)
+
+shap_fairness_domain = {
+    'Personal_status':{
+        "description":"Personal status and sex",
+        "values": {
+            	"A91" : "male: divorced/separated",
+                "A92" : "female: divorced/separated/married",
+                "A93" : "male: single",
+                "A94": "male: married/widowed",
+                "A95":"female: single",
+        }
+
+    },
+
+    "Age_group":{
+        "description": "Age in years",
+        "values": {
+            "19-25": "young (under 25)",
+            "26-35": "26-35",
+            "36-45": "36-45",
+            "46-55": "46-55",
+            "56-65": "56-65",
+            "66-75": "65+",
+        }
+    },
+
+    "Foreign_worker":{
+        "description": "Foreign worker",
+        "values": {
+            "A201": "yes",
+            "A202": "no",
+        }
+    },
+
+    "Male_female":{
+        "description": "Sex (M/F)",
+        "values": {
+            "Male": "male",
+            "Female": "female",
+        }
+    },
+
+}
+def shap_graph_fairness(shap_data, feature):
+    G = nx.DiGraph()
+    G.add_node("Explanation", label ="Explanation")
+    G.add_node(feature, label = feature)
+    G.add_edge("Explanation", feature, label = "Feature")
+    feature_descr = shap_fairness_domain[feature]["description"]
+    G.add_node(feature_descr, label = feature_descr)
+    G.add_edge(feature, feature_descr, label = "Feature Description")
+
+    for group, (feature_names, feature_contributions) in shap_data.items():
+        G.add_node(group, label = group)
+        G.add_edge(feature, group, label = "Group")
+
+        group_descr = shap_fairness_domain[feature]["values"][group]
+        G.add_node(group_descr, label = group_descr)
+        G.add_edge(group, group_descr, label = "Group Description")
+
+        for i in range (len(feature_names)):
+            G.add_node(f"{group} {feature_names[i]}", label = feature_names[i])
+            G.add_edge(group, f"{group} {feature_names[i]}", label = f"Contributes {feature_contributions[i]}")
+            feature_descr = domain_knowledge[feature_names[i]]["description"]
+            G.add_node(f"{group} {feature_descr}", label = feature_descr)
+            G.add_edge(f"{group} {feature_names[i]}", f"{group} {feature_descr}", label = "Description")
+    
+    return G
+protected_attributes_shap_fairness = ["Personal status and sex", "Age in years", "Foreign worker"]
+
+def depth_first_search_shap_fairness(graph, node, visited, explanation, idx):
+    visited.add(node)
+    for neighbor in graph.neighbors(node):
+        relation = graph.get_edge_data(node, neighbor)["label"]
+        if relation == "Feature Description":
+            explanation.insert(0, f"\n<strong>Top 10 most important features for {neighbor}:</strong> \n")
+        if relation == "Group Description":
+            explanation.append(f"\n<i>&nbsp;Group {neighbor}:</i> \n")
+            idx[0] = 0
+        if graph.out_degree(neighbor) == 0 and relation != "Feature Description" and relation != "Group Description":
+            idx[0] += 1
+            print(idx)
+            label = graph.nodes[neighbor]["label"]
+            if label in protected_attributes_shap_fairness:
+                explanation.append(f"{idx}. <strong style='color:red'>&nbsp;&nbsp;&#8594{label} </strong>\n")
+            else:
+                explanation.append(f"{idx}. &nbsp;&nbsp;&#8594{label} \n")
+        if neighbor not in visited:
+            depth_first_search_shap_fairness(graph, neighbor, visited, explanation, idx)
+    return explanation
+
+
+def fairness_shap_nle(graph, root_node):
+    explanation = []
+    idx = [0]
+    explanation = depth_first_search_shap_fairness(graph, root_node, set(), explanation, idx)
+    print(explanation)
+    
+    
+    return "".join(explanation)
+
+def is_employee(user):
+    return user.groups.filter(name='employee').exists()
+
+
+@login_required
+@user_passes_test(is_employee)
+def model_explanation(request):
     if request.method == "POST":
         user_input = request.POST.get("user_input")
         
@@ -1009,10 +1231,10 @@ def other_chatbot(request):
 
             german_credit_data = pd.read_csv(X_PATH, index_col=0) 
             german_credit_data.columns = ['Account_status', 'Months', 'Credit_history', 'Purpose', 
-                              'Credit_amount', 'Savings', 'Employment', 'Installment_rate', 
-                              'Personal_status', 'Other_debtors', 'Residence', 'Property', 'Age', 
-                              'Other_installments', 'Housing', 'Number_credits', 'Job', 'Number_dependents', 
-                              'Telephone', 'Foreign_worker', 'target'] 
+                                        'Credit_amount', 'Savings', 'Employment', 'Installment_rate', 
+                                        'Personal_status', 'Other_debtors', 'Residence', 'Property', 'Age', 
+                                        'Other_installments', 'Housing', 'Number_credits', 'Job', 'Number_dependents', 
+                                        'Telephone', 'Foreign_worker', 'target'] 
             
             X = german_credit_data.loc[:, german_credit_data.columns != "target"]
             y = german_credit_data["target"]
@@ -1037,7 +1259,7 @@ def other_chatbot(request):
             
             
 
-            G = shap_graph_global(feature_names, mean_abs_values[:10])
+            G = shap_graph_global(feature_names, mean_abs_values[top_10_indices])
             
             pos = nx.spring_layout(G) 
             
@@ -1063,10 +1285,10 @@ def other_chatbot(request):
 
             german_credit_data = pd.read_csv(X_PATH, index_col=0) 
             german_credit_data.columns = ['Account_status', 'Months', 'Credit_history', 'Purpose', 
-                              'Credit_amount', 'Savings', 'Employment', 'Installment_rate', 
-                              'Personal_status', 'Other_debtors', 'Residence', 'Property', 'Age', 
-                              'Other_installments', 'Housing', 'Number_credits', 'Job', 'Number_dependents', 
-                              'Telephone', 'Foreign_worker', 'target'] 
+                                        'Credit_amount', 'Savings', 'Employment', 'Installment_rate', 
+                                        'Personal_status', 'Other_debtors', 'Residence', 'Property', 'Age', 
+                                        'Other_installments', 'Housing', 'Number_credits', 'Job', 'Number_dependents', 
+                                        'Telephone', 'Foreign_worker', 'target'] 
             X = german_credit_data.loc[:, german_credit_data.columns != "target"]
 
             y = german_credit_data["target"]
@@ -1082,6 +1304,8 @@ def other_chatbot(request):
             #print(f"Precision: {precision}")
             # print(f"Accuracy: {accuracy}")
             
+            response = ""
+
 
             personal_status = X_test["Personal_status"]
             
@@ -1157,39 +1381,42 @@ def other_chatbot(request):
             }
             
 
-
-            
-            
+            G_personal_status = fairness_graph(overall_personal_status, by_group_personal_status, group_min_personal_status, 
+                                               group_max_personal_status, diff_personal_status, ratio_personal_status, overall_diff_personal_status, 
+                                               overall_ratio_personal_status, fairness_metrics_personal_status, "Personal_status")
             '''
-            G_personal_status = fairness_graph(overall_personal_status, by_group_personal_status, group_min_personal_status, group_max_personal_status, diff_personal_status, ratio_personal_status, overall_diff_personal_status, overall_ratio_personal_status, fairness_metrics_personal_status, "Personal_status")
-
-            pos = nx.spring_layout(G)
-            edge_labels = nx.get_edge_attributes(G, 'label')
-            nx.draw(G, pos, with_labels=True, node_size = 900, font_size = 10)
-            nx.draw_networkx_edge_labels(G, pos, edge_labels=edge_labels)
+            pos = nx.spring_layout(G_personal_status)
+            
+            edge_labels = nx.get_edge_attributes(G_personal_status, 'label')
+            nx.draw(G_personal_status , pos, with_labels=True, node_size = 900, font_size = 10)
+            nx.draw_networkx_edge_labels(G_personal_status , pos, edge_labels=edge_labels)
             plt.savefig("personal_stat.png")
             plt.close()
-            A = nx.nx_agraph.to_agraph(G)
-            A.layout(prog='dot')
-            A.draw('personal_stat.pdf')
+            A_personal_status = nx.nx_agraph.to_agraph(G_personal_status)
+            A_personal_status.layout(prog='dot')
+            A_personal_status.draw('personal_stat.pdf')
             plt.close()
             '''
+            
+
+            response_personal_status = fairness_nle(G_personal_status, "Explanation")
+            
             
             X_bin = X_test.copy()
             
             X_bin["Age_group"] = pd.cut(X_bin["Age"], bins=[19, 25, 35, 45, 55, 65, 75], labels=["19-25", "26-35", "36-45", "46-55", "56-65", "66-75"])
             metric_frame_age_bin = MetricFrame(
                 metrics={"accuracy": accuracy_score, 
-                         "precision": precision_score, 
-                         "recall/ true_positive_rate": true_positive_rate,
-                         "f1": f1_score,
-                         "selection_rate": selection_rate, 
-                         "count": count, 
-                         "false_positive_rate": false_positive_rate, 
-                         "false_negative_rate": false_negative_rate,
-                         "true_positive_rate": true_positive_rate,
-                         "true_negative_rate": true_negative_rate,
-                         "mean_prediction": mean_prediction, 
+                         #"precision": precision_score, 
+                         #"recall/ true_positive_rate": true_positive_rate,
+                         #"f1": f1_score,
+                         #"selection_rate": selection_rate, 
+                         #"count": count, 
+                         #"false_positive_rate": false_positive_rate, 
+                         #"false_negative_rate": false_negative_rate,
+                         #"true_positive_rate": true_positive_rate,
+                         #"true_negative_rate": true_negative_rate,
+                         #"mean_prediction": mean_prediction,   
                          },
                 y_true=y_test,
                 y_pred=y_pred,
@@ -1230,25 +1457,26 @@ def other_chatbot(request):
                 #"Equal Opportunity Difference": equal_opportunity_diff_age,
                 "Equal Opportunity Ratio": equal_opportunity_ratio_age,
             }
-            
-            #G_age_bin = fairness_graph(overall_age, by_group_age, group_min_age, group_max_age, diff_age, 
-            #                           ratio_age, overall_age, overall_ratio_age, fairness_metrics_age, "Age")
 
+            #print(metric_frame_age_bin.by_group)
+            G_age_bin = fairness_graph(overall_age, by_group_age, group_min_age, group_max_age, diff_age, 
+                                       ratio_age, overall_age, overall_ratio_age, fairness_metrics_age, "Age_group")
             
-
+            response_age = fairness_nle(G_age_bin, "Explanation")
+            response = ""
 
             metric_frame_foreign_worker = MetricFrame(
                 metrics={"accuracy": accuracy_score, 
-                         "precision": precision_score, 
-                         "recall/ true_positive_rate": true_positive_rate,
-                         "f1": f1_score,
-                         "selection_rate": selection_rate, 
-                         "count": count, 
-                         "false_positive_rate": false_positive_rate, 
-                         "false_negative_rate": false_negative_rate,
-                         "true_positive_rate": true_positive_rate,
-                         "true_negative_rate": true_negative_rate,
-                         "mean_prediction": mean_prediction, 
+                         #"precision": precision_score, 
+                         #"recall/ true_positive_rate": true_positive_rate,
+                         #"f1": f1_score,
+                         #"selection_rate": selection_rate, 
+                         #"count": count, 
+                         #"false_positive_rate": false_positive_rate, 
+                         #"false_negative_rate": false_negative_rate,
+                         #"true_positive_rate": true_positive_rate,
+                         #"true_negative_rate": true_negative_rate,
+                         #"mean_prediction": mean_prediction, 
                          },
                     
                 y_true=y_test,
@@ -1290,9 +1518,13 @@ def other_chatbot(request):
                 #"Equal Opportunity Difference": equal_opportunity_diff_foreign_worker,
                 "Equal Opportunity Ratio": equal_opportunity_ratio_foreign_worker,
             }
-            #G_foreign_worker = fairness_graph(overall_foreign_worker, by_group_foreign_worker, group_min_foreign_worker, group_max_foreign_worker, diff_foreign_worker,
-            #                           ratio_foreign_worker, overall_diff_foreign_worker, overall_ratio_foreign_worker, fairness_metrics_foreign_worker, "Foreign_worker")
 
+            print(metric_frame_foreign_worker.by_group)
+            print(metric_frame_foreign_worker.overall)
+            G_foreign_worker = fairness_graph(overall_foreign_worker, by_group_foreign_worker, group_min_foreign_worker, group_max_foreign_worker, diff_foreign_worker,
+                                       ratio_foreign_worker, overall_diff_foreign_worker, overall_ratio_foreign_worker, fairness_metrics_foreign_worker, "Foreign_worker")
+
+            response_foreign_worker = fairness_nle(G_foreign_worker, "Explanation")
 
 
             personal_status_mapping = {
@@ -1303,96 +1535,87 @@ def other_chatbot(request):
                 "A95": "Female", 
             }
             X_map = X_test.copy()
-            X_map["sex"] = X_map['Personal_status'].map(personal_status_mapping)
-            metric_frame_sex = MetricFrame(
+            X_map["male_female"] = X_map['Personal_status'].map(personal_status_mapping)
+            metric_frame_male_female = MetricFrame(
                 metrics={"accuracy": accuracy_score, 
-                         "precision": precision_score, 
-                         "recall/ true_positive_rate": true_positive_rate,
-                         "f1": f1_score,
-                         "selection_rate": selection_rate, 
-                         "count": count, 
-                         "false_positive_rate": false_positive_rate, 
-                         "false_negative_rate": false_negative_rate,
-                         "true_positive_rate": true_positive_rate,
-                         "true_negative_rate": true_negative_rate,
-                         "mean_prediction": mean_prediction, 
+                         #"precision": precision_score, 
+                         #"recall/ true_positive_rate": true_positive_rate,
+                         #"f1": f1_score,
+                         #"selection_rate": selection_rate, 
+                         #"count": count, 
+                         #"false_positive_rate": false_positive_rate, 
+                         #"false_negative_rate": false_negative_rate,
+                         #"true_positive_rate": true_positive_rate,
+                         #"true_negative_rate": true_negative_rate,
+                         #"mean_prediction": mean_prediction, 
                          },
                     
                 y_true=y_test,
                 y_pred=y_pred,
-                sensitive_features=X_map["sex"],
+                sensitive_features=X_map["male_female"],
             )
             
-            print(metric_frame_sex.by_group)
+            #print(metric_frame_male_female.by_group)
 
+            overall_male_female = metric_frame_male_female.overall
+            by_group_male_female = metric_frame_male_female.by_group
+            group_min_male_female = metric_frame_male_female.group_min()
+            group_max_male_female= metric_frame_male_female.group_max()  
+            diff_male_female = metric_frame_male_female.difference()
+            ratio_male_female = metric_frame_male_female.ratio()
+            overall_diff_male_female= metric_frame_male_female.difference(method = "to_overall")
+            overall_ratio_male_female= metric_frame_male_female.ratio(method = "to_overall")
 
-            feature_name = "Foreign_worker"
-            feature_index = list(X_test.columns).index(feature_name)
-
-            # print(feature_index)
-            '''
-            X = german_credit_data.loc[:, german_credit_data.columns != "target"]
-            explainer = shap.Explainer(model1)
+            demographic_parity_diff_male_female = demographic_parity_difference(y_true = y_test,
+                                                                                y_pred = y_pred,
+                                                                                sensitive_features = X_map["male_female"],)
+            demographic_parity_ratio_male_female = demographic_parity_ratio(y_true = y_test,
+                                                                            y_pred = y_pred,
+                                                                            sensitive_features = X_map["male_female"],)
             
-            shap_values = explainer(X)
-
-            abs_shap_values = np.abs(shap_values.values)
-            df_shap = pd.DataFrame(abs_shap_values, columns=shap_values.feature_names)
-            df_shap["Group"] = X["Foreign_worker"]
-            # print(df_shap.head(3))
-
-            shap_importance_foreign_worker = df_shap.groupby("Group").mean()
-            # print(shap_importance_foreign_worker.head(3))
-            # shap_importance_foreign_worker= shap_importance_foreign_worker.T
-            # print(shap_importance_foreign_worker)
-
-            group_1 = shap_importance_foreign_worker.iloc[0]
-
-            group_1 = group_1.sort_values(ascending=False)
-            # print(group_1.head(3))
-            group_2 = shap_importance_foreign_worker.iloc[1]
-            group_2 = group_2.sort_values(ascending=False)
-            # print(group_2.head(3))
-            # shap.dependence_plot("Foreign_worker", shap_values, X, shap_values.feature_names)
-            categorical_features = ['Account_status', 'Credit_history', 'Purpose', 'Savings', 'Employment', 'Personal_status', 'Other_debtors', 'Property', 'Other_installments', 'Housing', 'Job', 'Telephone', 'Foreign_worker']
-            data_pool = Pool(X, y, cat_features=categorical_features)
-
-
-            interactions = model1.get_feature_importance(data_pool, type = "Interaction")
-            print(interactions.shape)
-
-            interactions_df = pd.DataFrame(interactions, columns=["Feature 1 Index", "Feature 2 Index", "Interaction Strength"])
-            feature_names = X.columns
-            interactions_df["Feature 1"] = interactions_df["Feature 1 Index"].apply(lambda x: feature_names[int(x)])
-            interactions_df["Feature 2"] = interactions_df["Feature 2 Index"].apply(lambda x: feature_names[int(x)])
-            interactions_df = interactions_df.sort_values(by="Interaction Strength", ascending=False)
-            #print(interactions_df[["Feature 1", "Feature 2", "Interaction Strength"]].head(10))
-            specific_feature = "Credit_history"
-            specific_feature_interactions = interactions_df[
-                 (interactions_df["Feature 1"] == specific_feature) | (interactions_df["Feature 2"] == specific_feature)    
-            ]   
-
-            # Sort by interaction strength
-            specific_feature_interactions = specific_feature_interactions.sort_values(by="Interaction Strength", ascending=False)
-
-            # Display the interactions
-            print(specific_feature_interactions[["Feature 1", "Feature 2", "Interaction Strength"]])
+            equalized_odds_diff_male_female  = equalized_odds_difference(y_true = y_test,
+                                                             y_pred = y_pred,
+                                                             sensitive_features=X_map["male_female"],)
+            equalized_odds_ratio_male_female  = equalized_odds_ratio(y_true = y_test,
+                                                         y_pred = y_pred,
+                                                         sensitive_features=X_map["male_female"])
+            equal_opportunity_diff_male_female = equal_opportunity_difference(y_true = y_test,
+                                                                y_pred = y_pred,
+                                                                sensitive_features=X_map["male_female"],)
+            equal_opportunity_ratio_male_female = equal_opportunity_ratio(y_true = y_test,
+                                                                y_pred = y_pred,
+                                                                sensitive_features=X_map["male_female"],)
             
+            fairness_metrics_male_female = { 
+                #"Demographic Parity Difference": demographic_parity_diff_foreign_worker,
+                "Demographic Parity Ratio": demographic_parity_ratio_male_female ,
+                #"Equalized Odds Difference": equalized_odds_diff_foreign_worker,
+                "Equalized Odds Ratio": equalized_odds_ratio_male_female ,
+                #"Equal Opportunity Difference": equal_opportunity_diff_foreign_worker,
+                "Equal Opportunity Ratio": equal_opportunity_ratio_male_female ,
+            }
 
-            feature_importances = model1.get_feature_importance()
-            print(pd.DataFrame({'Feature': X.columns, 'Importance': feature_importances}).sort_values(by='Importance', ascending=False))
-            print(X["Foreign_worker"].value_counts())
-            '''
-            return JsonResponse({'answer': "Sorry, I didn't understand that."})
+            G_male_female = fairness_graph(overall_male_female, by_group_male_female, group_min_male_female, group_max_male_female,
+                                           diff_male_female, ratio_male_female, overall_diff_male_female, overall_ratio_male_female,
+                                           fairness_metrics_male_female, "Male_female")  
+
+            response_male_female = fairness_nle(G_male_female, "Explanation")                                            
+
+
+            response = response_personal_status + response_male_female + response_age + response_foreign_worker
+
+            
+           
+            return JsonResponse({'answer': response})
         if user_input == "I want to see SHAP fairness":
             X_PATH = os.path.join(os.path.dirname(__file__), "statlog_german_credit_data")
 
             german_credit_data = pd.read_csv(X_PATH, index_col=0) 
             german_credit_data.columns = ['Account_status', 'Months', 'Credit_history', 'Purpose', 
-                              'Credit_amount', 'Savings', 'Employment', 'Installment_rate', 
-                              'Personal_status', 'Other_debtors', 'Residence', 'Property', 'Age', 
-                              'Other_installments', 'Housing', 'Number_credits', 'Job', 'Number_dependents', 
-                              'Telephone', 'Foreign_worker', 'target'] 
+                                        'Credit_amount', 'Savings', 'Employment', 'Installment_rate', 
+                                        'Personal_status', 'Other_debtors', 'Residence', 'Property', 'Age', 
+                                        'Other_installments', 'Housing', 'Number_credits', 'Job', 'Number_dependents', 
+                                        'Telephone', 'Foreign_worker', 'target'] 
             X = german_credit_data.loc[:, german_credit_data.columns != "target"]
 
             y = german_credit_data["target"]
@@ -1400,76 +1623,195 @@ def other_chatbot(request):
             X_train, X_test, y_train, y_test  = train_test_split(X, y, test_size=0.2, random_state=42) 
 
             X_filtered = X_train.copy()
-            X_filtered_male_91 = X_filtered[X_filtered["Personal_status"] == "A91"]
-
             explainer = shap.Explainer(model1)
 
+
+            # Personal status and sex
+            X_filtered_male_91 = X_filtered[X_filtered["Personal_status"] == "A91"]
             shap_values_male_91 = explainer(X_filtered_male_91)
             #shap.plots.bar(shap_values_male_91)
+            mean_abs_values_male_91 = np.abs(shap_values_male_91.values).mean(axis=0)
+            top_10_indices_male_91 = np.argsort(-mean_abs_values_male_91)[:10]
+            feature_names_male_91 = np.array(shap_values_male_91.feature_names)
+            feature_names_male_91 = feature_names_male_91[top_10_indices_male_91]
 
             X_filtered_female_92 = X_filtered[X_filtered["Personal_status"] == "A92"]
             shap_values_female_92 = explainer(X_filtered_female_92)
             # shap.plots.bar(shap_values_female_92)
+            mean_abs_values_female_92 = np.abs(shap_values_female_92.values).mean(axis=0)
+            top_10_indices_female_92 = np.argsort(-mean_abs_values_female_92)[:10]
+            feature_names_female_92 = np.array(shap_values_female_92.feature_names)
+            feature_names_female_92 = feature_names_female_92[top_10_indices_female_92]
 
             X_filtered_male_93 = X_filtered[X_filtered["Personal_status"] == "A93"]
             shap_values_male_93 = explainer(X_filtered_male_93)
             #shap.plots.bar(shap_values_male_93)
+            mean_abs_values_male_93 = np.abs(shap_values_male_93.values).mean(axis=0)
+            top_10_indices_male_93 = np.argsort(-mean_abs_values_male_93)[:10]
+            feature_names_male_93 = np.array(shap_values_male_93.feature_names)
+            feature_names_male_93 = feature_names_male_93[top_10_indices_male_93]
 
             X_filtered_male_94 = X_filtered[X_filtered["Personal_status"] == "A94"]
             shap_values_male_94 = explainer(X_filtered_male_94)
             #shap.plots.bar(shap_values_male_94)
+            mean_abs_values_male_94 = np.abs(shap_values_male_94.values).mean(axis=0)
+            top_10_indices_male_94 = np.argsort(-mean_abs_values_male_94)[:10]
+            feature_names_male_94 = np.array(shap_values_male_94.feature_names)
+            feature_names_male_94 = feature_names_male_94[top_10_indices_male_94]
+
+            shap_data_personal_status = {
+                "A91": (feature_names_male_91, mean_abs_values_male_91[top_10_indices_male_91]),
+                "A92": (feature_names_female_92, mean_abs_values_female_92[top_10_indices_female_92]),
+                "A93": (feature_names_male_93, mean_abs_values_male_93[top_10_indices_male_93]),
+                "A94": (feature_names_male_94, mean_abs_values_male_94[top_10_indices_male_94]),
+            }
 
 
-            # doesnt exist?
-            '''
-            X_filtered_female_95 = X_filtered[X_filtered["Personal_status"] == "A95"]
-            shap_values_female_95 = explainer(X_filtered_female_95)
-            shap.plots.bar(shap_values_female_95)
-            '''
+            # FOREIGN WORKER
 
             X_filtered_fk = X_filtered[X_filtered["Foreign_worker"] == "A201"]
             shap_values_fk = explainer(X_filtered_fk)
             #shap.plots.bar(shap_values_fk)
+            mean_abs_values_fk = np.abs(shap_values_fk.values).mean(axis=0)
+            top_10_indices_fk = np.argsort(-mean_abs_values_fk)[:10]
+            feature_names_fk = np.array(shap_values_fk.feature_names)
+            feature_names_fk = feature_names_fk[top_10_indices_fk]
 
             X_filtered_nf = X_filtered[X_filtered["Foreign_worker"] == "A202"]
             shap_values_nf = explainer(X_filtered_nf)
             #shap.plots.bar(shap_values_nf)
+            mean_abs_values_nf = np.abs(shap_values_nf.values).mean(axis=0)
+            top_10_indices_nf = np.argsort(-mean_abs_values_nf)[:10]
+            feature_names_nf = np.array(shap_values_nf.feature_names)
+            feature_names_nf = feature_names_nf[top_10_indices_nf]
+
+            shap_data_fk = {
+                "A201": (feature_names_fk, mean_abs_values_fk[top_10_indices_fk]), 
+                "A202": (feature_names_nf, mean_abs_values_nf[top_10_indices_nf]), 
+            }
+
+
+
+            # AGE 
 
             X_filtered_25 = X_filtered[X_filtered["Age"] < 25]
             shap_values_25 = explainer(X_filtered_25)
             #shap.plots.bar(shap_values_25)
+            mean_abs_values_25 = np.abs(shap_values_25.values).mean(axis=0) 
+            top_10_indices_25 = np.argsort(-mean_abs_values_25)[:10]
+            feature_names_25 = np.array(shap_values_25.feature_names)
+            feature_names_25= feature_names_25[top_10_indices_25]
 
             X_filtered_35 = X_filtered[X_filtered["Age"] < 35]
             shap_values_35 = explainer(X_filtered_35)
             #shap.plots.bar(shap_values_35)
+            mean_abs_values_35 = np.abs(shap_values_35.values).mean(axis=0)
+            top_10_indices_35 = np.argsort(-mean_abs_values_35)[:10]
+            feature_names_35 = np.array(shap_values_35.feature_names)
+            feature_names_35 = feature_names_35[top_10_indices_35]
 
             X_filtered_45 = X_filtered[X_filtered["Age"] < 45]
             shap_values_45 = explainer(X_filtered_45)
             #shap.plots.bar(shap_values_45)
+            mean_abs_values_45 = np.abs(shap_values_45.values).mean(axis=0)
+            top_10_indices_45 = np.argsort(-mean_abs_values_45)[:10]
+            feature_names_45 = np.array(shap_values_45.feature_names)
+            feature_names_45 = feature_names_45[top_10_indices_45]
 
             X_filtered_55 = X_filtered[X_filtered["Age"] < 55]
             shap_values_55 = explainer(X_filtered_55)
             #shap.plots.bar(shap_values_55)
+            mean_abs_values_55 = np.abs(shap_values_55.values).mean(axis=0)
+            top_10_indices_55 = np.argsort(-mean_abs_values_55)[:10]
+            feature_names_55 = np.array(shap_values_55.feature_names)
+            feature_names_55 = feature_names_55[top_10_indices_55]
 
             X_filtered_65 = X_filtered[X_filtered["Age"] < 65]
             shap_values_65 = explainer(X_filtered_65)
             #shap.plots.bar(shap_values_65)
+            mean_abs_values_65 = np.abs(shap_values_65.values).mean(axis=0)
+            top_10_indices_65 = np.argsort(-mean_abs_values_65)[:10]
+            feature_names_65 = np.array(shap_values_65.feature_names)
+            feature_names_65 = feature_names_65[top_10_indices_65]
 
             X_filtered_75 = X_filtered[X_filtered["Age"] <= 75]
             shap_values_75 = explainer(X_filtered_75)
             #shap.plots.bar(shap_values_75)
+            mean_abs_values_75 = np.abs(shap_values_75.values).mean(axis=0)
+            top_10_indices_75 = np.argsort(-mean_abs_values_75)[:10]
+            feature_names_75 = np.array(shap_values_75.feature_names)
+            feature_names_75 = feature_names_75[top_10_indices_75]
+
+            shap_data_age = {
+                "19-25": (feature_names_25, mean_abs_values_25[top_10_indices_25]), 
+                "26-35": (feature_names_35, mean_abs_values_35[top_10_indices_35]), 
+                "36-45": (feature_names_45, mean_abs_values_45[top_10_indices_45]), 
+                "46-55": (feature_names_55, mean_abs_values_55[top_10_indices_55]), 
+                "56-65": (feature_names_65, mean_abs_values_65[top_10_indices_65]), 
+                "66-75": (feature_names_75, mean_abs_values_75[top_10_indices_75]), 
+            }
 
 
 
+            #MALE FEMALE
+            X_filtered_male = X_filtered[X_filtered["Personal_status"].isin(["A91", "A93", "A94"])]
+            shap_values_male = explainer(X_filtered_male)
+
+            X_filtered_female = X_filtered[X_filtered["Personal_status"].isin(["A92", "A95"])]
+            shap_values_female = explainer(X_filtered_female)
 
 
+            mean_abs_values_female = np.abs(shap_values_female.values).mean(axis=0) 
+            #print(mean_abs_values)
+            top_10_indices_female = np.argsort(-mean_abs_values_female)[:10]
+            #print(top_10_indices)
+            feature_names_female = np.array(shap_values_female.feature_names)
+            feature_names_female = feature_names_female[top_10_indices_female]
+
+            mean_abs_values_male = np.abs(shap_values_male.values).mean(axis=0)
+            top_10_indices_male = np.argsort(-mean_abs_values_male)[:10]
+            feature_names_male = np.array(shap_values_male.feature_names)
+            feature_names_male = feature_names_male[top_10_indices_male]
+
+            shap_data_MF = {
+                "Female": (feature_names_female, mean_abs_values_female[top_10_indices_female]), 
+                "Male": (feature_names_male, mean_abs_values_male[top_10_indices_male])
+            }
             
 
+            response = ""
+            
+            G_male_female = shap_graph_fairness(shap_data_MF, "Male_female")
+            '''
+            pos = nx.spring_layout(G) 
+            
+            edge_labels = nx.get_edge_attributes(G, 'label')
+            
+            nx.draw(G, pos, with_labels=True, node_size = 900, font_size = 10)
+            nx.draw_networkx_edge_labels(G, pos, edge_labels=edge_labels)
+            plt.savefig("shap_graph_fairness_MF.png")
+            plt.close()
 
+            A = nx.nx_agraph.to_agraph(G)
+            A.layout(prog='dot')
+            A.draw('shap_graph_fairness_MF.pdf')
+            '''
+            response_male_female = fairness_shap_nle(G_male_female, "Explanation")
 
-            return JsonResponse({'answer': "Sorry, I didn't understand that."})
+            G_personal_status = shap_graph_fairness(shap_data_personal_status, "Personal_status")
+            response_personal_status = fairness_shap_nle(G_personal_status, "Explanation")
+
+            G_age = shap_graph_fairness(shap_data_age, "Age_group")
+            response_age = fairness_shap_nle(G_age, "Explanation")
+
+            G_fk = shap_graph_fairness(shap_data_fk, "Foreign_worker")
+            response_fk = fairness_shap_nle(G_fk, "Explanation")
+
+            response = response_male_female + response_personal_status + response_age + response_fk
+
+            return JsonResponse({'answer': response})
 
 
 
         return JsonResponse({'answer': "Sorry, I didn't understand that."})
-    return render(request, "other_chatbot.html")
+    return render(request, "model_explanation.html")

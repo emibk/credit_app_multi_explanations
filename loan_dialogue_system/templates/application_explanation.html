@@ -1,25 +1,28 @@
 <!DOCTYPE html>
 <html lang="en">
 <head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Loan Prediction app</title>
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.0.2/dist/css/bootstrap.min.css" rel="stylesheet" integrity="sha384-EVSTQN3/azprG1Anm3QDgpJLIm9Nao0Yz1ztcQTwFspd3yD65VohhpuuCOmLASjC" crossorigin="anonymous">
+    {% load custom_tags %}
 </head>
-<body>
-    <h1> Loan Chatbot </h1>
+<body class = "p-3 mb-2 bg-dark text-white">    
+    <h1>Loan Prediction Explanations</h1>
     <h3>Click on a question to get an answer: </h3>
     <div id="questions-list">
-        <button onclick="askQuestion('I want to see which features are most important globally')">
-            <p>I want to see which features are most important globally</p>
+        <button onclick="askQuestion('Remind me my loan status?')">
+            <p>Remind me my loan status?</p>
         </button>
-        <button onclick="askQuestion('I want to see the fairness of the model')">
-            <p>I want to see the fairness of the model</p>
+        <button onclick="askQuestion('How would my loan status be different?')">
+            <p>How would my loan status be different?</p>
         </button>
-        <button onclick="askQuestion('I want to see SHAP fairness')">
-            <p>I want to see SHAP fairness</p>
+        <button onclick="askQuestion('What features contributed to the prediction?')">
+            <p>What features contributed to the prediction?</p>
         </button>
-        
        
     </div>
-    <h3>Dialogue history: </h3>
+    <h3>Questions history: </h3>
     <div id="chat-box">
         <!-- Messages will appear here -->
     </div>
@@ -30,7 +33,6 @@
     function appendMessage(message, sender) {
         const chatBox = document.getElementById('chat-box');
         const messageDiv = document.createElement('div');
-        message = message.replace(/\r?\n/g, '<br>');
         if (sender === 'user') {
             messageDiv.innerHTML = `<strong>Your question:</strong> ${message}`;
         } else {
@@ -47,7 +49,7 @@
         appendMessage(question, 'user');
 
         // Send the question to Django server
-        fetch('{% url "other_chatbot" %}', {
+        fetch('{% url "application_explanation" %}', {
             method: 'POST',
             body: new URLSearchParams({
                 'user_input': question
