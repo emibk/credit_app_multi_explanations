@@ -10,7 +10,8 @@
   <div class="d-flex justify-content-center align-items-center min-vh-100">
     <div class="row justify-content-center">
         <div class="col">
-          <h1> Login </h1>
+          <h1> Login Form </h1>
+          </br>
           {% if form.errors %}
               <p>Wrong username and password. Try again.</p>
           {% endif %}
@@ -21,9 +22,11 @@
                   <label for="uname"><b>{{form.username.label_tag}}</b></label>
                   {{ form.username }}
               </br>
+            </br>
                 <label for="upass"><b>{{ form.password.label_tag }}</b></label>
                   {{ form.password }}
-                <input type="submit" value="login">
+                </br></br>
+                <input type="submit" value="login" class ="btn btn-primary">
                 <input type="hidden" name="next" value="{{ next }}">
               </form>
           </div>

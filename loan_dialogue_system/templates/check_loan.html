@@ -20,7 +20,7 @@
     
         {% if prediction == "Non-Creditworthy" %}
 
-            <p>Prediction: {{ prediction }}. For more details, access the link below.</p>
+            <p>Prediction: Not Creditworthy. Your loan would not be approved. For more details, access the link below.</p>
             <a href="{% url 'application_explanation' %}">
                 <button class = "btn btn-primary">Get explanations</button>
             </a>

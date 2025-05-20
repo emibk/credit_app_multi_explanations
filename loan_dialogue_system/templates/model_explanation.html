@@ -14,18 +14,22 @@
         <button onclick="askQuestion('I want to see which features are most important globally')">
             <p>I want to see which features are most important globally</p>
         </button>
-        <button onclick="askQuestion('I want to see the fairness of the model')">
-            <p>I want to see the fairness of the model</p>
+        <button onclick="askQuestion('I want to see feature importance for sensitive features')">
+            <p>I want to see feature importance for sensitive features</p>
         </button>
-        <button onclick="askQuestion('I want to see SHAP fairness')">
-            <p>I want to see SHAP fairness</p>
+        <button onclick="askQuestion('I want to see common fairness metrics')">
+            <p>I want to see common fairness metrics</p>
         </button>
+        <button onclick="askQuestion('I want to see performance-based fairness')">
+            <p>I want to see performance-based fairness</p>
+        </button>
+        
         
        
     </div>
-    <h3>Dialogue history: </h3>
+    <h3>Questions history: </h3>
     <div id="chat-box">
-        <!-- Messages will appear here -->
+        
     </div>
     
 </body>
@@ -43,14 +47,12 @@
         messageDiv.classList.add(sender + '-message');
         
         chatBox.appendChild(messageDiv);
-        chatBox.scrollTop = chatBox.scrollHeight;  // Scroll to the bottom
+        chatBox.scrollTop = chatBox.scrollHeight;  
     }
 
     function askQuestion(question) {
-        // Display the selected question
         appendMessage(question, 'user');
 
-        // Send the question to Django server
         fetch('{% url "model_explanation" %}', {
             method: 'POST',
             body: new URLSearchParams({

@@ -8,12 +8,14 @@
     {% load custom_tags %}
 </head>
 <body class = "p-3 mb-2 bg-dark text-white">
+    {% if user.is_authenticated %}
     <nav class="navbar justify-content-end">
         <form action="{% url 'logout' %}" method="post">
             {% csrf_token %}
             <button type="submit" class="btn btn-danger">Logout</button>
         </form>
     </nav>
+    {% endif %}
     <div class="d-flex justify-content-center align-items-center min-vh-100">
         <div class="row">
             <div class="col text-center ">
@@ -36,7 +38,7 @@
                 </a>
                 {% endif %}
                 {% if user.is_authenticated and user|user_belongs_to_group:'employee'%}
-                <a href="{% url 'other_chatbot' %}">
+                <a href="{% url 'model_explanation' %}">
                     <button class ="btn btn-primary"> Get information on the prediction model.</button>
                 </a>
                 {% endif %}
